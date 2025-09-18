@@ -1,0 +1,8 @@
+📋 *Menú Principal*
+
+1️⃣ Quiero hacer una consulta  
+2️⃣ Quiero generar un ticket
+3️⃣ Quiero gestionar mis tickets
+4️⃣ Salir
+
+✍️ Escribe el número de la opción que deseas:

@@ -1,0 +1,208 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}{{ page_title|default:"Pomi" }} · Chatbot{% endblock %}</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'styles/navbar.css' %}">
+  {% block extra_css %}{% endblock %}
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body class="layout" id="app">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar" aria-label="Menú principal">
+
+    <!-- Brand (ahora toggle del sidebar) -->
+    <div class="brand">
+      <!-- Ajusta el ancho con --logo-w y --logo-w-collapsed en el CSS -->
+      <button class="brand__full" id="brandToggler" type="button" aria-label="Ocultar/mostrar menú" aria-pressed="false">
+        <span class="brand__icon-wrap">
+          <i data-lucide="bot" class="brand__icon"></i>
+          <span class="brand__pulse"></span>
+        </span>
+        <span class="brand__text">
+          <strong>Pomi</strong>
+          <small>Chatbot</small>
+        </span>
+      </button>
+    </div>
+
+    <!-- Secciones -->
+    <nav class="nav">
+      <p class="nav__section">Principal</p>
+
+      <a href="{% url 'pomi:dashboard' %}"
+         class="nav__item {% if current_page == 'dashboard' %}is-active{% endif %}"
+         aria-current="{% if current_page == 'dashboard' %}page{% endif %}">
+        <span class="nav__icon"><i data-lucide="layout-dashboard"></i></span>
+        <span class="nav__labels">
+          <span class="nav__title">Dashboard</span>
+          <span class="nav__subtitle">Vista general</span>
+        </span>
+        {% if current_page == 'dashboard' %}
+          <span class="nav__dot"><span></span></span>
+        {% endif %}
+      </a>
+
+      <a href="{% url 'pomi:tickets' %}" class="nav__item {% if current_page == 'tickets' %}is-active{% endif %}">
+        <span class="nav__icon"><i data-lucide="ticket"></i></span>
+        <span class="nav__labels">
+          <span class="nav__title">Tickets</span>
+          <span class="nav__subtitle">Solicitudes</span>
+        </span>
+        {% if ticket_count|default:0 > 0 %}<span class="badge">{{ ticket_count }}</span>{% endif %}
+        {% if current_page == 'tickets' %}<span class="nav__dot"><span></span></span>{% endif %}
+      </a>
+
+      <p class="nav__section">Gestión</p>
+
+      <a href="{% url 'pomi:alumnos' %}" class="nav__item {% if current_page == 'students' %}is-active{% endif %}">
+        <span class="nav__icon"><i data-lucide="users"></i></span>
+        <span class="nav__labels">
+          <span class="nav__title">Alumnos</span>
+          <span class="nav__subtitle">Estudiantes</span>
+        </span>
+        {% if current_page == 'students' %}<span class="nav__dot"><span></span></span>{% endif %}
+      </a>
+
+      <a href="#" class="nav__item {% if current_page == 'feedback' %}is-active{% endif %}">
+        <span class="nav__icon"><i data-lucide="message-square"></i></span>
+        <span class="nav__labels">
+          <span class="nav__title">FeedbackGPT</span>
+          <span class="nav__subtitle">IA Assistant</span>
+        </span>
+        {% if feedback_count|default:0 > 0 %}<span class="badge">{{ feedback_count }}</span>{% endif %}
+        {% if current_page == 'feedback' %}<span class="nav__dot"><span></span></span>{% endif %}
+      </a>
+
+      <a href="#" class="nav__item {% if current_page == 'reports' %}is-active{% endif %}">
+        <span class="nav__icon"><i data-lucide="bar-chart"></i></span>
+        <span class="nav__labels">
+          <span class="nav__title">Reportes</span>
+          <span class="nav__subtitle">Analytics</span>
+        </span>
+        {% if current_page == 'reports' %}<span class="nav__dot"><span></span></span>{% endif %}
+      </a>
+    </nav>
+
+    <!-- Logout -->
+    <form class="logout" method="post" action="#">
+      {% csrf_token %}
+      <button type="submit" class="logout__btn">
+        <span class="logout__icon"><i data-lucide="log-out"></i></span>
+        <span class="logout__txt">Cerrar sesión</span>
+      </button>
+    </form>
+  </aside>
+
+  <!-- Overlay móvil (sin blur en desktop) -->
+  <div class="overlay" id="overlay" aria-hidden="true"></div>
+
+  <!-- Contenido -->
+  <main class="main" id="main">
+    <header class="topbar">
+      <button class="topbar__hamb" id="btnHamb" type="button" aria-label="Abrir menú">
+        <i data-lucide="menu"></i>
+      </button>
+
+      <nav class="crumbs" aria-label="Ruta">
+        <a href="#" class="crumbs__home"><i data-lucide="home"></i> Sistema</a>
+        <span class="crumbs__sep"><i data-lucide="chevron-right"></i></span>
+        <span class="crumbs__current">{{ page_title|default:"Dashboard" }}</span>
+      </nav>
+
+      <div class="topbar__right">
+        <div class="notif">
+          <button class="notif__btn" id="btnNotif" type="button" aria-label="Notificaciones">
+            <i data-lucide="bell"></i>
+            {% if notification_count|default:0 > 0 %}<span class="notif__badge">{{ notification_count }}</span>{% endif %}
+          </button>
+          <div class="notif__panel" id="panelNotif" role="dialog" aria-modal="false">
+            <div class="notif__head">
+              <strong>Notificaciones</strong>
+              <span class="notif__count">{{ notification_count|default:0 }}</span>
+            </div>
+            <div class="notif__empty">
+              <i data-lucide="bell-off"></i>
+              <p>No tienes notificaciones</p>
+            </div>
+          </div>
+        </div>
+
+        <button class="profile" id="btnProfile" type="button" aria-label="Perfil">
+          <span class="profile__avatar">
+            {% if user.avatar %}
+              <img src="{{ user.avatar.url }}" alt="Avatar de {{ user.get_full_name }}">
+            {% else %}
+              <span class="avatar-fallback">
+                {{ user.first_name.0|default:user.username.0|upper }}{{ user.last_name.0|default:''|upper }}
+              </span>
+            {% endif %}
+            <span class="status"></span>
+          </span>
+          <span class="profile__meta">
+            <span class="profile__name">{{ user.get_full_name|default:user.username }}</span>
+            <small class="profile__role">Administrador</small>
+          </span>
+          <i data-lucide="chevron-down" class="profile__chev"></i>
+        </button>
+      </div>
+    </header>
+
+    <section class="page">
+      <div class="page__inner">
+        {% block content %}{% endblock %}
+      </div>
+    </section>
+  </main>
+
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    lucide.createIcons();
+
+    const body = document.body;
+    const overlay = document.getElementById('overlay');
+    const btnHamb = document.getElementById('btnHamb');           // móvil
+    const brandToggler = document.getElementById('brandToggler'); // logo toggle
+    const panelNotif = document.getElementById('panelNotif');
+    const btnNotif = document.getElementById('btnNotif');
+
+    // Toggle por LOGO (desktop & mobile)
+    brandToggler?.addEventListener('click', () => {
+      const collapsed = body.classList.toggle('layout--collapsed');
+      brandToggler.setAttribute('aria-pressed', String(collapsed));
+    });
+
+    // Menú móvil
+    function openMobile(){
+      body.classList.add('layout--mobile-open');
+      overlay.classList.add('is-active');
+      document.documentElement.style.overflow = 'hidden';
+    }
+    function closeMobile(){
+      body.classList.remove('layout--mobile-open');
+      overlay.classList.remove('is-active');
+      document.documentElement.style.overflow = '';
+    }
+    btnHamb?.addEventListener('click', openMobile);
+    overlay?.addEventListener('click', closeMobile);
+    window.addEventListener('resize', () => { if (window.innerWidth >= 1024) closeMobile(); });
+
+    // Notificaciones
+    btnNotif?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      panelNotif.classList.toggle('is-open');
+    });
+    document.addEventListener('click', (e) => {
+      if (!panelNotif.contains(e.target) && !btnNotif.contains(e.target)) {
+        panelNotif.classList.remove('is-open');
+      }
+    });
+  });
+  </script>
+</body>
+</html>

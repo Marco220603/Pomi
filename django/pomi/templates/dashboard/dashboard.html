@@ -1,0 +1,322 @@
+{% extends "barra.html" %}
+{% load static %}
+
+{% block title %}Dashboard · Pomi{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'styles/dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="dash" aria-labelledby="dashTitle">
+  <!-- Hero -->
+  <header class="dash__head">
+    <div class="dash__hero">
+      <div class="hero__left">
+        <h1 id="dashTitle" class="dash__title">
+          Dashboard
+          <span class="title__shine" aria-hidden="true"></span>
+        </h1>
+        <p class="dash__subtitle">{{ page_subtitle|default:"Vista general del sistema" }}</p>
+        <div class="chips" role="group" aria-label="Rango de tiempo">
+          <a href="?range=7"  class="chip {% if request.GET.range == '7' %}is-active{% endif %}">7d</a>
+          <a href="?range=14" class="chip {% if request.GET.range == '14' or not request.GET.range %}is-active{% endif %}">14d</a>
+          <a href="?range=30" class="chip {% if request.GET.range == '30' %}is-active{% endif %}">30d</a>
+        </div>
+      </div>
+      <div class="hero__right">
+        <div class="glow-orb" aria-hidden="true"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- KPIs -->
+  <section class="kpis" aria-label="Indicadores clave">
+    <article class="kpi kpi--glow">
+      <div class="kpi__top">
+        <span class="kpi__label">Tickets totales</span>
+        <i data-lucide="layers"></i>
+      </div>
+      <div class="kpi__value">{{ kpi.total }}</div>
+      <div class="sparkbox"><canvas id="sparkTotal"></canvas></div>
+    </article>
+
+    <article class="kpi kpi--glow">
+      <div class="kpi__top">
+        <span class="kpi__label">Abiertos</span>
+        <i data-lucide="clock-9"></i>
+      </div>
+      <div class="kpi__value">{{ kpi.open }}</div>
+      <div class="sparkbox"><canvas id="sparkOpen"></canvas></div>
+    </article>
+
+    <article class="kpi kpi--glow">
+      <div class="kpi__top">
+        <span class="kpi__label">Resueltos</span>
+        <i data-lucide="check-circle-2"></i>
+      </div>
+      <div class="kpi__value">{{ kpi.resolved }}</div>
+      <div class="sparkbox"><canvas id="sparkResolved"></canvas></div>
+    </article>
+
+    <article class="kpi kpi--glow">
+      <div class="kpi__top">
+        <span class="kpi__label">Cerrados</span>
+        <i data-lucide="x-circle"></i>
+      </div>
+      <div class="kpi__value">{{ kpi.closed }}</div>
+      <div class="sparkbox"><canvas id="sparkClosed"></canvas></div>
+    </article>
+
+    <article class="kpi kpi--wide kpi--glass">
+      <div class="kpi__top">
+        <span class="kpi__label">Tiempo prom. resolución (h)</span>
+        <i data-lucide="timer"></i>
+      </div>
+      <div class="kpi__value">{{ kpi.avg_res_hours }}</div>
+      <div class="kpi__hint">Promedio en tickets cerrados</div>
+    </article>
+
+    <article class="kpi kpi--wide kpi--glass">
+      <div class="kpi__top">
+        <span class="kpi__label">Edad prom. abiertas (h)</span>
+        <i data-lucide="hourglass"></i>
+      </div>
+      <div class="kpi__value">{{ kpi.avg_open_hours }}</div>
+      <div class="kpi__hint">Desde creación hasta ahora</div>
+    </article>
+  </section>
+
+  <!-- Gráficos -->
+  <section class="cards" aria-label="Visualizaciones">
+    <article class="card card--glass">
+      <header class="card__head">
+        <h3 class="card__title"><i data-lucide="pie-chart"></i> Estado de los tickets</h3>
+        <div class="card__meta"><span class="dot"></span> Distribución actual</div>
+      </header>
+      <div class="card__body">
+        <div class="bg-grid"></div>
+        <div class="chart" style="--h:320px;">
+          <canvas id="chartState"></canvas>
+          <div class="center-value" id="stateCenter"></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card card--glass">
+      <header class="card__head">
+        <h3 class="card__title"><i data-lucide="gauge"></i> Prioridad</h3>
+        <div class="card__meta"><span class="dot"></span> Urgencia relativa</div>
+      </header>
+      <div class="card__body">
+        <div class="bg-grid"></div>
+        <div class="chart" style="--h:320px;">
+          <canvas id="chartPriority"></canvas>
+          <div class="center-value" id="prioCenter"></div>
+        </div>
+      </div>
+    </article>
+
+    <article class="card card--wide card--glass">
+      <header class="card__head">
+        <h3 class="card__title"><i data-lucide="users"></i> Carga por agente</h3>
+        <div class="card__meta"><span class="dot"></span> Balance operativo</div>
+      </header>
+      <div class="card__body">
+        <div class="bg-grid"></div>
+        <div class="chart" style="--h:340px;">
+          <canvas id="chartAgent"></canvas>
+        </div>
+      </div>
+    </article>
+
+    <article class="card card--full card--glass">
+      <header class="card__head">
+        <h3 class="card__title"><i data-lucide="line-chart"></i> Tendencia (14 días)</h3>
+        <div class="legend-pills" aria-hidden="true">
+          <span class="pill pill--brand">Creados</span>
+          <span class="pill pill--alt">Cerrados</span>
+        </div>
+      </header>
+      <div class="card__body">
+        <div class="bg-grid"></div>
+        <div class="chart" style="--h:360px;">
+          <canvas id="chartTrend"></canvas>
+        </div>
+      </div>
+    </article>
+  </section>
+</section>
+
+<!-- Datos serializados del view -->
+{{ chart|json_script:"dash-data" }}
+
+<!-- JS solo visual -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6"></script>
+<script>
+    // Charts solo visuales (no tocan Django)
+document.addEventListener('DOMContentLoaded', () => {
+  // Si tu layout base ya llama createIcons(), puedes comentar la línea de abajo
+  try { lucide.createIcons(); } catch (_) {}
+
+  // Evita doble inicialización
+  if (window.__pomiChartsInited) return;
+  window.__pomiChartsInited = true;
+
+  const el = document.getElementById('dash-data');
+  if (!el) return;
+
+  let data = {};
+  try { data = JSON.parse(el.textContent || '{}'); } catch { data = {}; }
+
+  // Defaults robustos
+  const get = (o, k, d) => (o && k in o ? o[k] : d);
+  data.state = data.state || { labels: [], data: [] };
+  data.priority = data.priority || { labels: [], data: [] };
+  data.agent = data.agent || { labels: [], data: [] };
+  data.trend = data.trend || { labels: [], created: [], closed: [] };
+
+  // Paleta desde CSS
+  const css = getComputedStyle(document.documentElement);
+  const C1 = css.getPropertyValue('--pomi-primary').trim() || '#ff3b30';
+  const C2 = css.getPropertyValue('--pomi-primary-700').trim() || '#b00000';
+
+  const vgrad = (ctx, c1, c2) => {
+    const g = ctx.createLinearGradient(0, 0, 0, 300);
+    g.addColorStop(0, c1); g.addColorStop(1, c2);
+    return g;
+  };
+
+  // Chart.js globales
+  Chart.defaults.responsive = true;
+  Chart.defaults.maintainAspectRatio = false;
+  Chart.defaults.resizeDelay = 200; // evita rebotes
+
+  const baseOpts = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 500, easing: 'easeOutQuad' },
+    plugins: {
+      legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 10, boxHeight: 10 } },
+      tooltip: { mode: 'index', intersect: false },
+    }
+  };
+
+  // ---- Estado (doughnut) ----
+  const sEl = document.getElementById('chartState');
+  if (sEl) {
+    const sctx = sEl.getContext('2d');
+    const total = get(data.state, 'data', []).reduce((a,b)=>a+b,0);
+    new Chart(sctx, {
+      type: 'doughnut',
+      data: {
+        labels: get(data.state, 'labels', []),
+        datasets: [{
+          data: get(data.state, 'data', []),
+          borderWidth: 2,
+          backgroundColor: ['#ffd26f', '#9ec5ff', '#86efac', '#e5e7eb'],
+          hoverOffset: 6
+        }]
+      },
+      options: { ...baseOpts, cutout: '62%' }
+    });
+    const center = document.getElementById('stateCenter');
+    if (center) center.textContent = String(total);
+  }
+
+  // ---- Prioridad (doughnut) ----
+  const pEl = document.getElementById('chartPriority');
+  if (pEl) {
+    const pctx = pEl.getContext('2d');
+    const total = get(data.priority, 'data', []).reduce((a,b)=>a+b,0);
+    new Chart(pctx, {
+      type: 'doughnut',
+      data: {
+        labels: get(data.priority, 'labels', []),
+        datasets: [{
+          data: get(data.priority, 'data', []),
+          borderWidth: 2,
+          backgroundColor: ['#ffb4b0', '#ffe08a', '#b5f7d2'],
+          hoverOffset: 6
+        }]
+      },
+      options: { ...baseOpts, cutout: '62%' }
+    });
+    const center = document.getElementById('prioCenter');
+    if (center) center.textContent = String(total);
+  }
+
+  // ---- Carga por agente (horizontal bar) ----
+  const aEl = document.getElementById('chartAgent');
+  if (aEl) {
+    const actx = aEl.getContext('2d');
+    new Chart(actx, {
+      type: 'bar',
+      data: {
+        labels: get(data.agent, 'labels', []),
+        datasets: [{
+          label: 'Tickets',
+          data: get(data.agent, 'data', []),
+          backgroundColor: vgrad(actx, C1, C2),
+          borderRadius: 10,
+          barPercentage: .7,
+          categoryPercentage: .9,
+        }]
+      },
+      options: {
+        ...baseOpts,
+        indexAxis: 'y',
+        scales: {
+          x: { grid: { color: 'rgba(0,0,0,.05)' }, ticks: { precision:0 } },
+          y: { grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  // ---- Tendencia (línea) ----
+  const tEl = document.getElementById('chartTrend');
+  if (tEl) {
+    const tctx = tEl.getContext('2d');
+    const gradCreated = vgrad(tctx, C1+'66', C1+'11');
+    new Chart(tctx, {
+      type: 'line',
+      data: {
+        labels: get(data.trend, 'labels', []),
+        datasets: [
+          { label: 'Creados', data: get(data.trend, 'created', []), tension:.35, fill:true, backgroundColor: gradCreated, borderColor:C1, borderWidth:2, pointRadius:0 },
+          { label: 'Cerrados', data: get(data.trend, 'closed',  []), tension:.35, fill:false, borderColor:C2, borderWidth:2, pointRadius:0 }
+        ]
+      },
+      options: {
+        ...baseOpts,
+        scales: {
+          x: { grid: { display:false } },
+          y: { grid: { color:'rgba(0,0,0,.06)' }, beginAtZero:true, ticks:{ precision:0 } }
+        }
+      }
+    });
+  }
+
+  // ---- Sparklines (mini líneas) ----
+  const spark = (id, series, color) => {
+    const c = document.getElementById(id);
+    if (!c || !series.length) return;
+    const ctx = c.getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: { labels: series.map((_,i)=>i), datasets: [{ data: series, borderColor: color, backgroundColor: color+'22', fill:true, tension:.35, pointRadius:0, borderWidth:2 }] },
+      options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{enabled:false}}, scales:{x:{display:false}, y:{display:false}} }
+    });
+  };
+  const created = get(data.trend, 'created', []);
+  const closed  = get(data.trend, 'closed',  []);
+  const cum = arr => arr.reduce((acc,v)=>(acc.push((acc.at(-1)||0)+v),acc), []);
+  spark('sparkTotal', cum(created), C2);
+  spark('sparkOpen',  created.map((_,i)=> Math.max(0, cum(created)[i] - (cum(closed)[i]||0))), '#1e40af');
+  spark('sparkResolved', closed, '#16a34a');
+  spark('sparkClosed',  cum(closed), '#0f172a');
+});
+
+</script>
+{% endblock %}

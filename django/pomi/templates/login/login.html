@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomi</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'styles/login.css' %}">
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+</head>
+<body>
+    <div class="login-container">
+        <!-- Enhanced Logo Section -->
+        <div class="logo-container">
+            <div class="logo-wrapper">
+                <div class="logo">
+                    <div class="logo-oval"></div>
+                    <div class="logo-oval"></div>
+                    <div class="logo-oval"></div>
+                </div>
+            </div>
+            <h1 class="logo-title">Pomi</h1>
+            <p class="logo-subtitle">Inicio de Sesión</p>
+        </div>
+
+        <!-- Enhanced Login Card -->
+        <div class="login-card">
+            <h2 class="login-title">Bienvenido</h2>
+            <p class="login-subtitle">Ingresa tus credenciales para acceder al sistema</p>
+
+            <!-- Error Message -->
+            {% if error %}
+            <div class="error-message" role="alert">
+                <i data-lucide="alert-circle"></i>
+                <span>{{ error }}</span>
+            </div>
+            {% endif %}
+
+            <form method="POST" id="loginForm" novalidate>
+                {% csrf_token %}
+                
+                <!-- Username Field -->
+                <div class="form-group">
+                    <label for="username" class="form-label">Usuario</label>
+                    <div class="form-input-wrapper">
+                        <input 
+                            type="text" 
+                            id="username" 
+                            name="username" 
+                            class="form-input" 
+                            required 
+                            autocomplete="username"
+                            placeholder="Ingresa tu usuario"
+                            aria-describedby="username-error"
+                        >
+                        <i data-lucide="user" class="input-icon"></i>
+                    </div>
+                    <div id="username-error" class="field-error" role="alert"></div>
+                </div>
+
+                <!-- Password Field -->
+                <div class="form-group">
+                    <label for="password" class="form-label">Contraseña</label>
+                    <div class="form-input-wrapper">
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="password" 
+                            class="form-input" 
+                            required 
+                            autocomplete="current-password"
+                            placeholder="Ingresa tu contraseña"
+                            aria-describedby="password-error"
+                        >
+                        <i data-lucide="lock" class="input-icon"></i>
+                        <button 
+                            type="button" 
+                            class="password-toggle" 
+                            aria-label="Mostrar/ocultar contraseña"
+                            tabindex="0"
+                        >
+                            <i data-lucide="eye"></i>
+                        </button>
+                    </div>
+                    <div id="password-error" class="field-error" role="alert"></div>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="submit-button" id="submitButton">
+                    <span class="loading-spinner"></span>
+                    <span class="button-text">Iniciar Sesión</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Initialize icons
+        document.addEventListener('DOMContentLoaded', function() {
+            lucide.createIcons();
+        });
+
+        // Enhanced Login Validator
+        class ModernLoginValidator {
+            constructor(form) {
+                this.form = form;
+                this.submitButton = form.querySelector('#submitButton');
+                this.usernameField = form.querySelector('#username');
+                this.passwordField = form.querySelector('#password');
+                this.passwordToggle = form.querySelector('.password-toggle');
+                
+                this.init();
+            }
+
+            init() {
+                // Enhanced event listeners
+                this.form.addEventListener('submit', this.handleSubmit.bind(this));
+                this.usernameField.addEventListener('blur', this.validateUsername.bind(this));
+                this.passwordField.addEventListener('blur', this.validatePassword.bind(this));
+                this.passwordField.addEventListener('input', this.handlePasswordInput.bind(this));
+                this.usernameField.addEventListener('input', this.handleUsernameInput.bind(this));
+                
+                // Real-time validation
+                this.usernameField.addEventListener('input', this.debounce(this.validateUsernameRealtime.bind(this), 300));
+                this.passwordField.addEventListener('input', this.debounce(this.validatePasswordRealtime.bind(this), 300));
+                
+                // Password toggle
+                this.passwordToggle.addEventListener('click', this.togglePassword.bind(this));
+                this.passwordToggle.addEventListener('keydown', this.handleToggleKeydown.bind(this));
+
+                // Enhanced focus effects
+                this.addFocusEffects();
+            }
+
+            debounce(func, wait) {
+                let timeout;
+                return function executedFunction(...args) {
+                    const later = () => {
+                        clearTimeout(timeout);
+                        func(...args);
+                    };
+                    clearTimeout(timeout);
+                    timeout = setTimeout(later, wait);
+                };
+            }
+
+            addFocusEffects() {
+                [this.usernameField, this.passwordField].forEach(field => {
+                    field.addEventListener('focus', () => {
+                        field.parentElement.parentElement.style.transform = 'scale(1.02)';
+                    });
+                    
+                    field.addEventListener('blur', () => {
+                        field.parentElement.parentElement.style.transform = 'scale(1)';
+                    });
+                });
+            }
+
+            validateUsername() {
+                const username = this.usernameField.value.trim();
+                const errorDiv = document.getElementById('username-error');
+                
+                if (!username) {
+                    this.showFieldError(this.usernameField, errorDiv, 'El usuario es requerido');
+                    return false;
+                }
+                
+                if (username.length < 3) {
+                    this.showFieldError(this.usernameField, errorDiv, 'Mínimo 3 caracteres');
+                    return false;
+                }
+
+                if (!/^[a-zA-Z0-9._-]+$/.test(username)) {
+                    this.showFieldError(this.usernameField, errorDiv, 'Solo letras, números y . _ -');
+                    return false;
+                }
+                
+                this.clearFieldError(this.usernameField, errorDiv);
+                return true;
+            }
+
+            validatePassword() {
+                const password = this.passwordField.value;
+                const errorDiv = document.getElementById('password-error');
+                
+                if (!password) {
+                    this.showFieldError(this.passwordField, errorDiv, 'La contraseña es requerida');
+                    return false;
+                }
+                
+                this.clearFieldError(this.passwordField, errorDiv);
+                return true;
+            }
+
+            validateUsernameRealtime() {
+                if (this.usernameField.value.trim()) {
+                    this.validateUsername();
+                }
+            }
+
+            validatePasswordRealtime() {
+                if (this.passwordField.value) {
+                    this.validatePassword();
+                }
+            }
+
+            showFieldError(field, errorDiv, message) {
+                field.classList.add('error');
+                errorDiv.textContent = message;
+                
+                // Add shake animation
+                field.style.animation = 'none';
+                field.offsetHeight; // Trigger reflow
+                field.style.animation = null;
+            }
+
+            clearFieldError(field, errorDiv) {
+                field.classList.remove('error');
+                errorDiv.textContent = '';
+            }
+
+            handleUsernameInput() {
+                if (this.usernameField.value.trim()) {
+                    this.clearFieldError(this.usernameField, document.getElementById('username-error'));
+                }
+            }
+
+            handlePasswordInput() {
+                if (this.passwordField.value) {
+                    this.clearFieldError(this.passwordField, document.getElementById('password-error'));
+                }
+            }
+
+            togglePassword() {
+                const isPassword = this.passwordField.type === 'password';
+                const icon = this.passwordToggle.querySelector('i');
+                
+                this.passwordField.type = isPassword ? 'text' : 'password';
+                icon.setAttribute('data-lucide', isPassword ? 'eye-off' : 'eye');
+                
+                // Re-render icon with animation
+                lucide.createIcons();
+                
+                // Update aria-label
+                this.passwordToggle.setAttribute('aria-label', 
+                    isPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'
+                );
+
+                // Focus back to input
+                this.passwordField.focus();
+            }
+
+            handleToggleKeydown(e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    this.togglePassword();
+                }
+            }
+
+            showLoading() {
+                this.submitButton.classList.add('loading');
+                this.submitButton.disabled = true;
+                
+                // Add loading shimmer effect
+                this.submitButton.style.background = 'linear-gradient(135deg, var(--gray-400) 0%, var(--gray-500) 100%)';
+            }
+
+            hideLoading() {
+                this.submitButton.classList.remove('loading');
+                this.submitButton.disabled = false;
+                this.submitButton.style.background = '';
+            }
+
+            handleSubmit(e) {
+                e.preventDefault();
+                
+                // Enhanced validation
+                const isUsernameValid = this.validateUsername();
+                const isPasswordValid = this.validatePassword();
+                
+                if (!isUsernameValid || !isPasswordValid) {
+                    // Focus on first error field
+                    const firstErrorField = !isUsernameValid ? this.usernameField : this.passwordField;
+                    firstErrorField.focus();
+                    return;
+                }
+                
+                // Show enhanced loading
+                this.showLoading();
+                
+                // Add success micro-interaction
+                this.submitButton.style.transform = 'scale(0.98)';
+                
+                setTimeout(() => {
+                    this.submitButton.style.transform = '';
+                    // Submit form
+                    this.form.submit();
+                }, 500);
+            }
+        }
+
+        // Initialize enhanced validator
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginForm = document.getElementById('loginForm');
+            if (loginForm) {
+                new ModernLoginValidator(loginForm);
+            }
+
+            // Add entrance animations with stagger
+            const elements = [
+                document.querySelector('.logo-container'),
+                document.querySelector('.login-card')
+            ];
+
+            elements.forEach((el, index) => {
+                if (el) {
+                    el.style.animationDelay = `${index * 0.1}s`;
+                }
+            });
+        });
+
+        // Enhanced keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const focused = document.activeElement;
+                if (focused.classList.contains('password-toggle')) {
+                    e.preventDefault();
+                    focused.click();
+                }
+            }
+        });
+
+        // Add visual feedback for form interactions
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputs = document.querySelectorAll('.form-input');
+            
+            inputs.forEach(input => {
+                input.addEventListener('focus', function() {
+                    this.parentElement.style.transform = 'translateY(-1px)';
+                });
+                
+                input.addEventListener('blur', function() {
+                    this.parentElement.style.transform = '';
+                });
+            });
+        });
+    </script>
+</body>
+</html>

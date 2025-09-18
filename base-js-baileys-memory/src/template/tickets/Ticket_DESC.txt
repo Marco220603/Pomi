@@ -1,0 +1,3 @@
+🚀 Ingrese una *descripción* del ticket 📝
+🔙 O escriba 1 para cambiar el *TIPO DE TICKET*
+🏠 O escriba 2 para regresar al *MENÚ PRINCIPAL*

@@ -1,0 +1,259 @@
+{% extends "barra.html" %}
+{% load static %}
+
+{% block title %}Tickets · Pomi{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'styles/tickets.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="tickets" aria-labelledby="ticketsTitle">
+  <!-- Encabezado / acciones -->
+  <header class="tickets__actions" aria-label="Acciones de tickets">
+    <div class="actions__left">
+      <h1 id="ticketsTitle" class="tickets__title">
+        Tickets
+        <span class="title__shine" aria-hidden="true"></span>
+      </h1>
+      <p class="tickets__subtitle">{{ page_subtitle|default:"Gestión de Tickets" }}</p>
+    </div>
+
+    <div class="actions__right">
+      <form method="get" class="search" role="search" aria-label="Buscar tickets">
+        <i data-lucide="search" class="search__icon"></i>
+        <input name="q" class="search__input" placeholder="Buscar por código o asunto…" value="{{ request.GET.q|default:'' }}">
+      </form>
+
+      <!-- Filtro de estado (no rompe Django si el view no lo usa) -->
+      <form method="get" class="filter" aria-label="Filtrar por estado">
+        <div class="select">
+          <select name="state" class="input input--select" aria-label="Estado">
+            <option value="">Todos</option>
+            <option value="pending" {% if request.GET.state == 'pending' %}selected{% endif %}>Pendiente</option>
+            <option value="in_progress" {% if request.GET.state == 'in_progress' %}selected{% endif %}>En Progreso</option>
+            <option value="resolved" {% if request.GET.state == 'resolved' %}selected{% endif %}>Resuelto</option>
+            <option value="closed" {% if request.GET.state == 'closed' %}selected{% endif %}>Cerrado</option>
+          </select>
+        </div>
+      </form>
+    </div>
+  </header>
+
+  <!-- Mensajes de Django -->
+  {% if messages %}
+    <div class="messages" role="status" aria-live="polite">
+      {% for m in messages %}
+        <div class="msg msg--{{ m.tags }}">{{ m }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- Tabla -->
+  <div class="card table-card">
+    <div class="table-wrap">
+      <table class="table" aria-label="Listado de tickets">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Asunto</th>
+            <th>Descripción</th>
+            <th>Prioridad</th>
+            <th>Asignado a</th>
+            <th>Estado</th>
+            <th>Última respuesta</th>
+            <th>Actualizado</th>
+            <th class="col-actions">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in alumnos %}
+          <tr class="row-animate"
+              data-code="{{ a.codigo_ticket }}"
+              data-subject="{{ a.subject|default:''|escape }}"
+              data-desc="{{ a.description|default:''|escape }}"
+              data-priority="{{ a.priority|default:'Baja' }}"
+              data-agent="{% if a.atendido_por %}{{ a.atendido_por.user.get_full_name|default:a.atendido_por.user.username }}{% else %}Sin asignar{% endif %}">
+            <td class="mono">{{ a.codigo_ticket }}</td>
+            <td>{{ a.subject|default:"—" }}</td>
+            <td class="truncate">{{ a.description|default:"—" }}</td>
+
+            <!-- PRIORIDAD -->
+            <td>
+              {% with p=a.priority|default:"Baja" %}
+                {% if p == "Alta" %}
+                  <span class="tag tag--high">Alta</span>
+                {% elif p == "Media" %}
+                  <span class="tag tag--medium">Media</span>
+                {% else %}
+                  <span class="tag tag--low">Baja</span>
+                {% endif %}
+              {% endwith %}
+            </td>
+
+            <!-- ASIGNADO A -->
+            <td>
+              {% if a.atendido_por %}
+                <span class="user">
+                  <span class="user__avatar">
+                    {% with fi=a.atendido_por.first_name|default:""|first fl=a.atendido_por.last_name|default:""|first un=a.atendido_por.username|default:""|first %}
+                      {{ fi|upper }}{{ fl|upper }}{% if not fi and not fl %}{{ un|upper }}{% endif %}
+                    {% endwith %}
+                  </span>
+                  <span class="user__name">{{ a.atendido_por.user.get_full_name|default:a.atendido_por.user.username }}</span>
+                </span>
+              {% else %}
+                <span class="soft">Sin asignar</span>
+              {% endif %}
+            </td>
+
+            <!-- ESTADO -->
+            <td>
+              {% with s=a.state|default:"pending" %}
+                {% if s == "resolved" %}
+                  <span class="pill pill--ok"><i data-lucide="check-circle-2"></i> Resuelto</span>
+                {% elif s == "closed" %}
+                  <span class="pill pill--off"><i data-lucide="x-circle"></i> Cerrado</span>
+                {% elif s == "in_progress" %}
+                  <span class="pill pill--progress"><i data-lucide="loader-2"></i> En progreso</span>
+                {% else %}
+                  <span class="pill pill--pending"><i data-lucide="clock-9"></i> Pendiente</span>
+                {% endif %}
+              {% endwith %}
+            </td>
+
+            <td class="soft">{{ a.respuesta_actual|default:"—" }}</td>
+            <td class="soft mono">{{ a.updated_at|default:a.created_at|date:"Y-m-d H:i"|default:"—" }}</td>
+
+            <td class="actions">
+              <button type="button" class="icon-btn js-attend" title="Atender ticket">
+                <i data-lucide="message-square"></i>
+              </button>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="9" class="empty">
+              <i data-lucide="inbox"></i>
+              No hay tickets registrados.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- Modal Atender -->
+<div class="modal" id="modalAttend" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="modal__panel">
+    <header class="modal__head">
+      <div>
+        <h3 id="attendTitle">Atender ticket</h3>
+        <small id="attendTicketLabel" class="muted"></small>
+      </div>
+      <button class="modal__close" type="button" data-close>
+        <i data-lucide="x"></i>
+      </button>
+    </header>
+
+    <form method="post" class="form" action="{% url 'pomi:tickets' %}" id="formAttend">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="atender">
+      <input type="hidden" name="codigo_ticket" id="fldCodeTicket">
+
+      <div class="grid">
+        <div class="field field--full">
+          <label>Mensaje para el estudiante <span>*</span></label>
+          <textarea name="rpta_ticket" id="fldReply" class="input input--area" rows="6" placeholder="Escribe una respuesta clara, cordial y accionable…" required></textarea>
+          <div class="hint">
+            <span id="replyCounter" aria-live="polite">0</span> / 500
+          </div>
+        </div>
+      </div>
+
+      <footer class="modal__foot">
+        <button type="button" class="btn" data-close>Cancelar</button>
+        <button type="submit" class="btn btn--primary">
+          <span class="btn__inner"><i data-lucide="send"></i> Enviar respuesta</span>
+          <span class="btn__spin" aria-hidden="true"></span>
+        </button>
+      </footer>
+    </form>
+  </div>
+</div>
+
+<!-- JS propio (no interfiere con Django; no intercepta el POST) -->
+<script>
+    // JS minimalista: solo UI (animaciones, modal). No intercepta ni modifica el POST de Django.
+document.addEventListener('DOMContentLoaded', () => {
+  // Asegurar íconos (si ya fueron creados por la base, esto es no-op)
+  try { lucide.createIcons(); } catch (_) {}
+
+  const $  = (s, el=document) => el.querySelector(s);
+  const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+
+  // --- Helpers modal (no afectan formularios) ---
+  const open  = (m) => { m?.classList.add('is-open'); m?.setAttribute('aria-hidden','false'); };
+  const close = (m) => { m?.classList.remove('is-open'); m?.setAttribute('aria-hidden','true'); };
+
+  const modalAttend = $('#modalAttend');
+  const fldCodeTicket = $('#fldCodeTicket');
+  const lblTicket = $('#attendTicketLabel');
+  const fldReply = $('#fldReply');
+  const replyCounter = $('#replyCounter');
+
+  // Abrir modal de "Atender"
+  $$('.js-attend').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row = btn.closest('tr');
+      const code     = row?.dataset.code || '';
+      const subject  = row?.dataset.subject || '';
+      const priority = row?.dataset.priority || 'Baja';
+      const agent    = row?.dataset.agent || 'Sin asignar';
+
+      fldCodeTicket.value = code;
+
+      // Etiqueta con más contexto
+      const parts = [];
+      if (code) parts.push(`#${code}`);
+      if (subject) parts.push(subject);
+      parts.push(`Prioridad: ${priority}`);
+      parts.push(`Asignado: ${agent}`);
+      lblTicket.textContent = parts.join(' · ');
+
+      // Reset visual
+      fldReply.value = '';
+      replyCounter.textContent = '0';
+
+      open(modalAttend);
+      setTimeout(() => fldReply?.focus(), 80);
+    });
+  });
+
+
+  // Cerrar modal
+  $$('[data-close]').forEach(b => b.addEventListener('click', (e) => close(e.target.closest('.modal'))));
+  modalAttend?.addEventListener('click', (e) => { if (e.target === modalAttend) close(modalAttend); });
+
+  // Contador de caracteres (visual solamente)
+  fldReply?.addEventListener('input', () => {
+    const len = (fldReply.value || '').length;
+    replyCounter.textContent = len > 500 ? '500+' : String(len);
+  });
+
+  // Animación de filas al entrar (visual)
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(en => {
+      if (en.isIntersecting) {
+        en.target.classList.add('in');
+        io.unobserve(en.target);
+      }
+    });
+  }, { threshold: .1 });
+  $$('.row-animate').forEach(r => io.observe(r));
+});
+
+</script>
+{% endblock %}

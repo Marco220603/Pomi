@@ -1,0 +1,117 @@
+import { addKeyword, EVENTS } from '@builderbot/bot'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import axios from 'axios'
+
+import { withProgressTyping } from '../../behavior/typing.js'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const TAG = '[flowLogin]'
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbz5LaqCqvpFEK7EkYwQ4mnYJqG-RuexG1F-tRvZ8GYv8ckI-viN307Bcdi8QOGm-Mc_rA/exec'
+
+const messageWelcome = fs.readFileSync(
+  path.join(__dirname, '../../template/Login/inicio.txt'),
+  'utf-8'
+)
+
+export const flowLogin = addKeyword(EVENTS.WELCOME).addAnswer(
+  messageWelcome,
+  { delay: 500, capture: true },
+  async (ctx, { provider, flowDynamic, fallBack }) => {
+    const reqId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+    const jid = ctx?.key?.remoteJid || ctx?.from
+    console.log(`${TAG}(${reqId}) onMessage → from=${jid} body="${ctx.body}"`)
+
+    const code_student = String(ctx.body || '').trim().toUpperCase()
+    console.log(`${TAG}(${reqId}) normalize → code_student="${code_student}"`)
+
+    const isValid = validateCode(code_student)
+    console.log(`${TAG}(${reqId}) validateCode → ${isValid}`)
+    if (!isValid) {
+      console.log(`${TAG}(${reqId}) fallBack (código inválido)`)
+      return fallBack('❌ Código no válido. Ingresa un código correcto (Ej: U202012345): ')
+    }
+
+    try {
+      console.log(`${TAG}(${reqId}) withProgressTyping → start (jid=${jid}) msg="Validando código UPC… 🔎"`)
+      await withProgressTyping(
+        ctx,
+        { provider, flowDynamic },
+        'Validando código UPC… 🔎',
+        // workFn: NO envía mensajes; solo retorna data
+        async () => {
+          const t0 = Date.now()
+          console.log(`${TAG}(${reqId}) axios.request → POST ${GAS_URL} body={ userCode: "${code_student}" }`)
+          try {
+            const res = await axios.post(
+              GAS_URL,
+              { userCode: code_student },
+              {
+                timeout: 8000,
+                // asegúrate de que trate no-2xx como error:
+                validateStatus: (s) => s >= 200 && s < 300,
+                headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' },
+                transformResponse: [(data) => {
+                  // Intenta parsear JSON si viene como string
+                  try { return typeof data === 'string' ? JSON.parse(data) : data }
+                  catch { return { raw: data } }
+                }]
+              }
+            )
+            const dt = Date.now() - t0
+            console.log(`${TAG}(${reqId}) axios.response ← status=${res.status} elapsed=${dt}ms data=`, res.data)
+            return res.data
+          } catch (err) {
+            const dt = Date.now() - t0
+            // Detalle de Axios
+            if (axios.isAxiosError(err)) {
+              const s = err.response?.status
+              const d = err.response?.data
+              console.error(`${TAG}(${reqId}) axios.error × status=${s ?? 'N/A'} elapsed=${dt}ms message="${err.message}" data=`, d)
+            } else {
+              console.error(`${TAG}(${reqId}) request.error × elapsed=${dt}ms`, err)
+            }
+            throw err
+          }
+        },
+        // onSuccess: aquí sí respondes al usuario
+        async (data) => {
+          console.log(`${TAG}(${reqId}) onSuccess → data=`, data)
+          if (!data || data.raw) {
+            console.warn(`${TAG}(${reqId}) respuesta inesperada (no JSON válido).`)
+            await flowDynamic('El servicio respondió un formato inesperado. Intenta más tarde.')
+            return
+          }
+          if (data?.activo) {
+            const nombre_formateado = String(data?.nombres || '').split(' ')[0].trim()
+            console.log(`${TAG}(${reqId}) usuario activo → nombre="${nombre_formateado}"`)
+            await flowDynamic(`¡Hola ${nombre_formateado}! ¿Qué deseas hacer?`)
+          } else {
+            console.log(`${TAG}(${reqId}) usuario inactivo`)
+            await flowDynamic('Lo siento, el usuario no está activado. Por favor, contacta con soporte.')
+          }
+        },
+        // opciones typing
+        { minMs: 2000 }
+      )
+      console.log(`${TAG}(${reqId}) withProgressTyping → done (jid=${jid})`)
+    } catch (error) {
+      console.error(`${TAG}(${reqId}) catch ×`, error?.message || error)
+      await flowDynamic('Hubo un problema con la conexión. Intenta de nuevo.')
+    }
+  }
+)
+
+// Validador: U + 9 alfanuméricos (normaliza y limpia separadores)
+function validateCode(codigo) {
+  const norm = String(codigo)
+    .normalize('NFKD')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+  const ok = /^U[A-Z0-9]{9}$/.test(norm)
+  // Log específico del validador
+  console.log(`${TAG} validateCode → input="${codigo}" norm="${norm}" ok=${ok}`)
+  return ok
+}

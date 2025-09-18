@@ -1,0 +1,262 @@
+{% extends "barra.html" %}
+{% load static %}
+
+{% block title %}Alumnos · Pomi{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'styles/alumnos.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<!-- Contenedor principal de CRUD -->
+<section class="students">
+  <!-- Barra de acciones -->
+  <header class="students__actions" aria-label="Acciones">
+    <div class="actions__left">
+      <h1 class="students__title">
+        Alumnos
+        <span class="title__shine" aria-hidden="true"></span>
+      </h1>
+      <p class="students__subtitle">{{ page_subtitle|default:"" }}</p>
+    </div>
+
+    <div class="actions__right">
+      <form method="get" class="search" role="search" aria-label="Buscar alumnos">
+        <i data-lucide="search" class="search__icon"></i>
+        <input name="q" class="search__input" placeholder="Buscar por código, nombres o carrera…" value="{{ request.GET.q|default:'' }}">
+      </form>
+
+      <button type="button" class="btn btn--primary" id="btnNew">
+        <i data-lucide="plus"></i> Nuevo alumno
+      </button>
+    </div>
+  </header>
+
+  <!-- Mensajes de Django -->
+  {% if messages %}
+    <div class="messages" role="status" aria-live="polite">
+      {% for m in messages %}
+        <div class="msg msg--{{ m.tags }}">{{ m }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- Tabla -->
+  <div class="card table-card">
+    <div class="table-wrap">
+      <table class="table" aria-label="Listado de alumnos">
+        <thead>
+          <tr>
+            <th>Código UPC</th>
+            <th>Nombres</th>
+            <th>Apellidos</th>
+            <th>Carrera</th>
+            <th>Estado</th>
+            <th class="col-actions">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in alumnos %}
+          <tr class="row-animate" 
+              data-code="{{ a.code_upc }}"
+              data-first="{{ a.first_names|escape }}"
+              data-full="{{ a.full_names|escape }}"
+              data-career="{{ a.career|default:''|escape }}"
+              data-active="{{ a.is_active|yesno:'true,false' }}">
+            <td class="mono">{{ a.code_upc }}</td>
+            <td>{{ a.first_names }}</td>
+            <td>{{ a.full_names }}</td>
+            <td><span class="badge badge--soft">{{ a.career|default:"—" }}</span></td>
+            <td>
+              {% if a.is_active %}
+                <span class="pill pill--ok"><i data-lucide="check-circle-2"></i> Activo</span>
+              {% else %}
+                <span class="pill pill--off"><i data-lucide="x-circle"></i> Inactivo</span>
+              {% endif %}
+            </td>
+            <td class="actions">
+              <button type="button" class="icon-btn js-edit" title="Editar">
+                <i data-lucide="pencil-line"></i>
+              </button>
+              <button type="button" class="icon-btn icon-btn--danger js-delete" title="Eliminar">
+                <i data-lucide="trash-2"></i>
+              </button>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="empty">
+              <i data-lucide="user-round"></i>
+              No hay alumnos registrados.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- Modal Create/Update -->
+<div class="modal" id="modalForm" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="modal__panel">
+    <header class="modal__head">
+      <h3 id="formTitle">Nuevo alumno</h3>
+      <button class="modal__close" type="button" data-close>
+        <i data-lucide="x"></i>
+      </button>
+    </header>
+
+    <form method="post" class="form" id="formStudent" action="{% url 'pomi:alumnos' %}">
+      {% csrf_token %}
+      <input type="hidden" name="action" id="fldAction" value="create">
+
+      <div class="grid">
+        <div class="field">
+          <label>Código UPC <span>*</span></label>
+          <input name="code_upc" id="fldCode" class="input" placeholder="2024XXXX" required>
+        </div>
+
+        <div class="field">
+          <label>Nombres <span>*</span></label>
+          <input name="first_names" id="fldFirst" class="input" placeholder="Nombres" required>
+        </div>
+
+        <div class="field">
+          <label>Apellidos <span>*</span></label>
+          <input name="full_names" id="fldFull" class="input" placeholder="Apellidos" required>
+        </div>
+
+        <div class="field">
+          <label>Carrera</label>
+          <div class="select">
+            <select name="career" id="fldCareer" class="input input--select">
+              <option value="Ing. de Sistemas">Ing. de Sistemas</option>
+              <option value="Ing. de Software">Ing. de Software</option>
+              <option value="C.C.">C.C.</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="checkline">
+          <label class="switch">
+            <input type="checkbox" name="is_active" id="fldActive" checked>
+            <span class="switch__ui"></span>
+          </label>
+          <span>Activo</span>
+        </div>
+      </div>
+
+      <footer class="modal__foot">
+        <button type="button" class="btn" data-close>Cancelar</button>
+        <button type="submit" class="btn btn--primary">
+          <span class="btn__inner"><i data-lucide="save"></i> Guardar</span>
+          <span class="btn__spin" aria-hidden="true"></span>
+        </button>
+      </footer>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Delete -->
+<div class="modal" id="modalDelete" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="modal__panel modal__panel--sm">
+    <header class="modal__head">
+      <h3>Eliminar alumno</h3>
+      <button class="modal__close" type="button" data-close><i data-lucide="x"></i></button>
+    </header>
+    <form method="post" action="{% url 'pomi:alumnos' %}" class="form">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="delete">
+      <input type="hidden" name="code_upc" id="delCode">
+
+      <p class="confirm">
+        ¿Seguro que deseas eliminar al alumno <strong id="delLabel"></strong>?
+      </p>
+
+      <footer class="modal__foot">
+        <button type="button" class="btn" data-close>Cancelar</button>
+        <button type="submit" class="btn btn--danger"><i data-lucide="trash-2"></i> Eliminar</button>
+      </footer>
+    </form>
+  </div>
+</div>
+
+<!-- JS mínimo para toggles y animación (no altera POST de Django) -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Reasegurar icons si el base ya los creó igual no pasa nada
+  try { lucide.createIcons(); } catch(e) {}
+
+  const $ = (s, el=document) => el.querySelector(s);
+  const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+
+  // Helpers modal
+  const open = m => { m?.classList.add('is-open'); m?.setAttribute('aria-hidden','false'); }
+  const close = m => { m?.classList.remove('is-open'); m?.setAttribute('aria-hidden','true'); }
+
+  const modalForm = $('#modalForm');
+  const modalDel  = $('#modalDelete');
+  const btnNew    = $('#btnNew');
+
+  const fldAction = $('#fldAction');
+  const fldCode   = $('#fldCode');
+  const fldFirst  = $('#fldFirst');
+  const fldFull   = $('#fldFull');
+  const fldCareer = $('#fldCareer');
+  const fldActive = $('#fldActive');
+
+  // NEW
+  btnNew?.addEventListener('click', () => {
+    $('#formTitle').textContent = 'Nuevo alumno';
+    fldAction.value = 'create';
+    fldCode.readOnly = false;
+    [fldCode, fldFirst, fldFull, fldCareer].forEach(i => i.value = '');
+    fldActive.checked = true;
+    open(modalForm);
+    setTimeout(()=>fldCode.focus(), 80);
+  });
+
+  // EDIT
+  $$('.js-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row = btn.closest('tr');
+      $('#formTitle').textContent = 'Editar alumno';
+      fldAction.value = 'update';
+      fldCode.value   = row.dataset.code;
+      fldCode.readOnly = true; // código como id
+      fldFirst.value  = row.dataset.first;
+      fldFull.value   = row.dataset.full;
+      fldCareer.value = row.dataset.career || '';
+      fldActive.checked = row.dataset.active === 'true';
+      open(modalForm);
+      setTimeout(()=>fldFirst.focus(), 80);
+    });
+  });
+
+  // DELETE
+  $$('.js-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row = btn.closest('tr');
+      $('#delCode').value  = row.dataset.code;
+      $('#delLabel').textContent = row.dataset.code + ' - ' + row.dataset.first + ' ' + row.dataset.full;
+      open(modalDel);
+    });
+  });
+
+  // Cerrar modales
+  $$('[data-close]').forEach(b => b.addEventListener('click', e => close(e.target.closest('.modal'))));
+  [modalForm, modalDel].forEach(m => m.addEventListener('click', (e)=>{ if(e.target === m) close(m); }));
+
+  // Animación de filas al entrar
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(en=>{
+      if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); }
+    });
+  }, {threshold:.1});
+  $$('.row-animate').forEach(r=>io.observe(r));
+});
+</script>
+
+{% endblock %}

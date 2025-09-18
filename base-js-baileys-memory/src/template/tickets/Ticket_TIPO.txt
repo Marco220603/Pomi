@@ -1,0 +1,16 @@
+🎫 Por favor selecciona el motivo de tu solicitud para poder ayudarte mejor. Responde con el número correspondiente a tu caso:
+
+📌 Tickets generales
+1️⃣ No puedo contactar a mi asesor especializado
+2️⃣ No puedo contactar a mi coautor
+
+📝 Errores en el ingreso del formulario
+3️⃣ Ingreso erróneo de código del alumno
+4️⃣ Error en el nombre del partner
+5️⃣ Error en el nombre del asesor especializado
+6️⃣ No adjunté el documento firmado y aprobado por el asesor especializado
+
+🏠 Regresar al Menu Principal de opciones
+7️⃣ Salir
+
+✅ Una vez que selecciones una opción, continúa con una breve descripción del problema. ¡Gracias!

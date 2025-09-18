@@ -1,0 +1,158 @@
+/* Base */
+:root{
+  --primary: var(--pomi-primary, #ff3b30);
+  --primary-700: var(--pomi-primary-700, #b00000);
+  --line: var(--pomi-line, #e8ebf1);
+  --ink-1: #0f121d;
+  --ink-2: #1b2232;
+  --muted: #7d8aa0;
+  --card: rgba(255,255,255,.86);
+  --glass: rgba(255,255,255,.6);
+}
+*,*::before,*::after{ box-sizing: border-box }
+
+/* ---- Layout ---- */
+.dash{ display:flex; flex-direction:column; gap:18px; }
+
+/* ---- Hero ---- */
+.dash__head{ position:relative; }
+.dash__hero{
+  display:grid; grid-template-columns: 1.3fr .7fr; gap:16px;
+  padding:18px; border:1px solid var(--line); border-radius:18px;
+  background: linear-gradient(135deg, rgba(255,59,48,.06), rgba(176,0,0,.04));
+  box-shadow: 0 16px 40px rgba(0,0,0,.08), inset 0 1px 0 rgba(255,255,255,.25);
+  overflow:hidden; position:relative;
+}
+.hero__left{ position:relative; z-index:1 }
+.dash__title{
+  position:relative; font-weight:900; letter-spacing:-.02em;
+  font-size: clamp(1.45rem, 1rem + 1.4vw, 2rem);
+  background: linear-gradient(90deg, var(--primary) 0%, #111 30%, var(--primary-700) 100%);
+  -webkit-background-clip: text; background-clip:text; color:transparent;
+}
+.dash__subtitle{ color:#667084; margin-top:6px }
+.title__shine{
+  position:absolute; left:0; bottom:-8px; width:80px; height:4px; border-radius:999px;
+  background: linear-gradient(90deg, var(--primary), var(--primary-700));
+  animation: shine .9s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes shine{ from{width:0; opacity:.25} to{width:80px; opacity:1} }
+
+.hero__right{ position:relative }
+.glow-orb{
+  position:absolute; right:-40px; top:-60px; width:260px; height:260px; border-radius:50%;
+  filter: blur(36px); opacity:.6; pointer-events:none;
+  background: radial-gradient(closest-side, rgba(255,59,48,.8), rgba(255,59,48,0) 70%),
+              radial-gradient(closest-side, rgba(176,0,0,.7), rgba(176,0,0,0) 60%);
+  animation: float 6s ease-in-out infinite alternate;
+}
+@keyframes float{ to{ transform: translate(-12px, 10px) scale(1.06) } }
+
+/* Chips rango */
+.chips{ display:flex; gap:8px; margin-top:12px }
+.chip{
+  display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 12px;
+  border-radius:999px; border:1px solid var(--line); background:#fff; color:#1c2333; font-weight:700;
+  transition:.25s cubic-bezier(.22,1,.36,1); text-decoration:none;
+}
+.chip:hover{ transform: translateY(-1px); box-shadow:0 8px 18px rgba(0,0,0,.08) }
+.chip.is-active{
+  color:#fff; border-color:transparent;
+  background:linear-gradient(135deg, var(--primary), var(--primary-700));
+}
+
+/* ---- KPIs ---- */
+.kpis{
+  display:grid; gap:14px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.kpi{
+  position:relative; background:#fff; border:1px solid var(--line); border-radius:16px; padding:14px;
+  box-shadow:0 12px 26px rgba(0,0,0,.06); overflow:hidden;
+}
+.kpi--glass{
+  background: var(--glass); backdrop-filter: blur(10px);
+}
+.kpi--glow::before{
+  content:""; position:absolute; inset:-1px; border-radius:18px; padding:1px;
+  background: linear-gradient(135deg, rgba(255,59,48,.6), rgba(176,0,0,.0));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude; pointer-events:none;
+}
+.kpi__top{ display:flex; justify-content:space-between; align-items:center; color:#6f7787; margin-bottom:6px }
+.kpi__top i{ width:18px; height:18px }
+.kpi__label{ font-weight:800; font-size:.82rem; letter-spacing:.02em }
+.kpi__value{ font-weight:900; letter-spacing:-.02em; font-size: clamp(1.25rem, 1rem + 1.2vw, 1.9rem) }
+.kpi__hint{ color:#7c8599; font-size:.8rem; margin-top:4px }
+
+/* Spark containers (estables) */
+.sparkbox{
+  position:relative; inline-size:100%; block-size:42px; margin-top:6px;
+  overflow:hidden; border-radius:8px;
+}
+.sparkbox > canvas{
+  position:absolute; inset:0; display:block; inline-size:100%; block-size:100%;
+}
+
+/* ---- Cards ---- */
+.cards{
+  display:grid; gap:14px;
+  grid-template-columns: repeat(12, 1fr);
+}
+.card{
+  grid-column: span 6;
+  position:relative; background:rgba(255,255,255,.88); border:1px solid var(--line); border-radius:18px;
+  box-shadow:0 12px 26px rgba(0,0,0,.06); overflow:hidden;
+}
+.card--glass{ background:var(--card); backdrop-filter: blur(10px); }
+.card--wide{ grid-column: span 12; }
+.card--full{ grid-column: 1 / -1; }
+.card__head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:12px 14px; border-bottom:1px solid var(--line);
+}
+.card__title{ display:flex; align-items:center; gap:10px; font-weight:900; letter-spacing:-.01em }
+.card__title i{ width:18px; height:18px }
+.card__meta{ display:flex; align-items:center; gap:8px; color:#7b879b; font-weight:700; font-size:.8rem }
+.card__meta .dot{ width:8px; height:8px; border-radius:50%; background: var(--primary) }
+.card__body{ position:relative; padding:14px; contain: layout paint; }
+
+/* Chart containers (estables) */
+.chart{
+  position:relative; inline-size:100%; block-size: var(--h, 320px);
+  overflow:hidden; border-radius:12px;
+}
+.chart > canvas{
+  position:absolute; inset:0; display:block; inline-size:100%; block-size:100%;
+}
+
+/* Fondo grid sutil */
+.bg-grid{
+  position:absolute; inset:0; z-index:0; pointer-events:none;
+  background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,.05) 1px, transparent 0);
+  background-size: 22px 22px; animation: gridfade 1.6s ease both;
+}
+@keyframes gridfade{ from{ opacity:0 } to{ opacity:1 } }
+
+/* Doughnut center value */
+.center-value{
+  position:absolute; inset:0; display:grid; place-items:center; z-index:1; pointer-events:none;
+  font-weight:900; letter-spacing:-.02em; color:#1c2333; font-size: clamp(1rem, .7rem + 1vw, 1.3rem);
+}
+
+/* Legend pills */
+.pill{ display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; font-weight:800; font-size:.78rem }
+.pill--brand{ background:#ffe6e4; color:#b00000; border:1px solid #ffc7c0 }
+.pill--alt{   background:#ecf2ff; color:#1e40af; border:1px solid #c9d4ff }
+
+/* Responsive */
+@media (max-width: 1200px){
+  .kpis{ grid-template-columns: repeat(3, 1fr); }
+  .kpi--wide{ grid-column: span 3; }
+  .card{ grid-column: span 12; }
+  .dash__hero{ grid-template-columns: 1fr; }
+}
+@media (max-width: 720px){
+  .kpis{ grid-template-columns: 1fr 1fr; }
+  .kpi--wide{ grid-column: span 2; }
+}
