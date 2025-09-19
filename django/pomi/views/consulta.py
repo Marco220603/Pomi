@@ -132,7 +132,7 @@ class ChatWebhookView(APIView):
             "celular": celular,
             "pregunta": user_text,
             "respuesta": final_msg,
-            "tiempo": response_time
+            "tiempo": round(response_time, 4)  # Limitar a 4 decimales
         }
         
         nuevo_registro = guardar_historico(datos_feedbackgpt)

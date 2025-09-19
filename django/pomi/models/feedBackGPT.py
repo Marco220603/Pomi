@@ -7,7 +7,7 @@ class FeedbackGPT(models.Model):
     code_conversación = models.CharField(max_length=20, unique=True, blank=False)
     pregunta = models.CharField(max_length=300, blank=False)
     respuesta = models.CharField(max_length=400, blank=False)
-    tiempo = models.CharField(blank=False, max_length=10)
+    tiempo = models.DecimalField(max_digits=10, decimal_places=4, blank=False)
     
     def save(self, *args, **kwargs):
         if not self.pk and not self.code_conversación:
