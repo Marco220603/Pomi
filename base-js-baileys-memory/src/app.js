@@ -21,6 +21,11 @@ const main = async () => {
     flow: adapterFlow,
     provider: adapterProvider,
     database: adapterDB,
+  }, {
+    queue: {
+      timeout: 30000,        // 30 s de tope por mensaje: sobrado para esos ~7 s de tabla
+      concurrencyLimit: 15    // permite hasta 20 tareas en paralelo (tus ~15 usuarios caben)
+    }
   })
 
   adapterProvider.server.post(
