@@ -5,15 +5,62 @@ from rest_framework.response import Response
 from rest_framework import status, permissions, throttling
 from pomi.apis.consultaSerializer import whatsAppIn
 from pomi.apis.consultaServices import guardar_historico
-from pomi.views.openia import gpt_response
 import time
 from dotenv import load_dotenv
 import requests
+from openai import OpenAI
 
 # Cargar el el .env
 load_dotenv()
 
 RASA_URL = os.getenv("RASA_URL")
+
+def call_openai_directly(query, context="", usuario_id="anonimo", model="ft:gpt-4o-mini-2024-07-18:personal:pomififvrs:BnAyJv1u"):
+    """
+    Función auxiliar para llamar directamente a OpenAI sin pasar por la vista de Django
+    """
+    try:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            print("❌ No se encontró OPENAI_API_KEY en variables de entorno")
+            return None
+            
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "Responde como un asistente académico de la Universidad Peruana de Ciencias Aplicadas (UPC), "
+                    "especializado exclusivamente en temas académicos y administrativos de la UPC."
+                )
+            },
+            {
+                "role": "user",
+                "content": f"{context}\n\n{query}" if context else query
+            }
+        ]
+        
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=0.3
+        )
+
+        gpt_text = response.choices[0].message.content
+        print(f"✅ GPT generó respuesta para {usuario_id}")
+        
+        return {
+            "status": "ok",
+            "response": gpt_text
+        }
+
+    except Exception as e:
+        import traceback
+        print("❌ Error GPT:\n", traceback.format_exc())
+        return {
+            "error": str(e),
+            "status": "error"
+        }
 
 class ChatWebhookView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -197,11 +244,6 @@ class ChatWebhookView(APIView):
         if should_use_openai:
             print("🤖 Rasa no pudo responder, usando OpenAI como fallback...")
             
-            # Crear un request mock para la función de OpenAI
-            class MockRequest:
-                def __init__(self, body_data):
-                    self.body = json.dumps(body_data).encode('utf-8')
-            
             # Preparar datos para OpenAI con más contexto
             openai_data = {
                 "query": user_text,
@@ -210,41 +252,31 @@ class ChatWebhookView(APIView):
             }
             
             print(f"📤 Enviando a OpenAI: {openai_data}")
-            mock_request = MockRequest(openai_data)
             
             try:
                 # Llamar a la función de OpenAI con timeout
                 openai_start_time = time.time()
-                openai_response = gpt_response(mock_request)
+                openai_response = call_openai_directly(
+                    query=openai_data["query"],
+                    context=openai_data["context"],
+                    usuario_id=openai_data["usuario_id"]
+                )
                 openai_response_time = time.time() - openai_start_time
                 
                 print(f"⏱️ OpenAI respondió en {openai_response_time:.2f} segundos")
-                print(f"📊 Status Code OpenAI: {openai_response.status_code}")
+                print(f"📨 Respuesta completa de OpenAI: {openai_response}")
                 
-                if openai_response.status_code == 200:
-                    try:
-                        openai_content = json.loads(openai_response.content.decode('utf-8'))
-                        print(f"📨 Respuesta completa de OpenAI: {openai_content}")
-                        
-                        if openai_content.get("status") == "ok":
-                            openai_text = openai_content.get("response", "").strip()
-                            if openai_text and len(openai_text) > 5:  # Validar que no esté vacía
-                                final_msg = openai_text
-                                print(f"✅ OpenAI respondió exitosamente: {final_msg[:100]}...")
-                            else:
-                                print(f"⚠️ Respuesta de OpenAI vacía o muy corta: '{openai_text}'")
-                        else:
-                            print(f"❌ OpenAI retornó error: {openai_content}")
-                    except json.JSONDecodeError as e:
-                        print(f"❌ Error al parsear JSON de OpenAI: {e}")
-                        print(f"📄 Contenido crudo: {openai_response.content.decode('utf-8')[:200]}...")
-                elif openai_response.status_code == 429:
-                    print("⏰ OpenAI: Rate limit alcanzado")
-                elif openai_response.status_code >= 500:
-                    print(f"🔧 OpenAI: Error del servidor ({openai_response.status_code})")
+                if openai_response and openai_response.get("status") == "ok":
+                    openai_text = openai_response.get("response", "").strip()
+                    if openai_text and len(openai_text) > 5:  # Validar que no esté vacía
+                        final_msg = openai_text
+                        print(f"✅ OpenAI respondió exitosamente: {final_msg[:100]}...")
+                    else:
+                        print(f"⚠️ Respuesta de OpenAI vacía o muy corta: '{openai_text}'")
+                elif openai_response and openai_response.get("status") == "error":
+                    print(f"❌ OpenAI retornó error: {openai_response.get('error', 'Error desconocido')}")
                 else:
-                    print(f"❌ Error HTTP de OpenAI: {openai_response.status_code}")
-                    print(f"📄 Contenido: {openai_response.content.decode('utf-8')[:200]}...")
+                    print(f"❌ Respuesta inesperada de OpenAI: {openai_response}")
                     
             except Exception as e:
                 print(f"❌ Excepción al llamar OpenAI: {str(e)}")
@@ -270,6 +302,7 @@ class ChatWebhookView(APIView):
         try:
             datos_feedbackgpt = {
                 "celular": celular,
+                "sender_id": sender,  # Agregar el sender_id
                 "pregunta": user_text,
                 "respuesta": final_msg,
                 "tiempo": round(response_time, 4)  # Limitar a 4 decimales
@@ -280,6 +313,8 @@ class ChatWebhookView(APIView):
             
         except Exception as e:
             print(f"❌ Error al guardar en histórico: {str(e)}")
+            print(f"📱 Celular que causó el error: {celular}")
+            print(f"🔍 Tipo de error: {type(e).__name__}")
             # Continuar con la respuesta aunque falle el guardado
         
         print(f"🎯 Respuesta final enviada al usuario: {final_msg}")
