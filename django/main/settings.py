@@ -29,7 +29,19 @@ SECRET_KEY = 'django-insecure-vmksyx4^=(#4p&5fv(+n6-k$zmn95y5uhxqu@@e3t0#rs^xso@
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['172.31.46.10','52.15.79.134','172.31.39.137','18.188.98.100','172.31.42.94','3.21.129.53', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['172.31.46.10','52.15.79.134','172.31.39.137','18.188.98.100','172.31.42.94','3.21.129.53', 'localhost', '127.0.0.1', 'pomi-production.up.railway.app']
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://pomi-production.up.railway.app",
+    "https://*.railway.app",        # opcional, por si cambia el subdominio
+    "https://*.up.railway.app",     # opcional (Railway usa este patrón)
+    "http://localhost",
+    "http://127.0.0.1",
+]
+
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+USE_X_FORWARDED_HOST = True
 
 # Application definition
 
@@ -41,6 +53,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     
+    'whitenoise.runserver_nostatic',
+    
     #APPs
     'pomi',
     
@@ -50,6 +64,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -141,4 +156,8 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'pomi/static')
 ]
 
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+LOGIN_URL = '/login/'
