@@ -28,7 +28,7 @@ const messageWelcome = fs.readFileSync(
   'utf-8'
 )
 dotenv.config()
-const verifyStudentUrl = process.env['verify-student']
+const verifyStudentUrl = process.env.VERIFY_STUDENT_URL
 if (!verifyStudentUrl) {
   console.error('FATAL: VERIFY_STUDENT_URL no está definida en .env')
 }
@@ -50,7 +50,7 @@ export const mensajeBienvenida = addKeyword(EVENTS.WELCOME)
             verifyStudentUrl,
             { code: codigo_upc, phone: phone_upc },
             {
-              timeout: 10000,                 // evita colgarse
+              timeout: 5000,                 // evita colgarse
               validateStatus: () => true      // << NO lances error por 4xx/5xx
             }
           )
