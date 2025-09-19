@@ -1,6 +1,10 @@
 import { createBot, createProvider, createFlow} from '@builderbot/bot'
 import { BaileysProvider as Provider } from '@builderbot/provider-baileys'
-import { PostgreSQLAdapter as Database} from '@builderbot/database-postgres'
+import { MongoAdapter as Database } from '@builderbot/database-mongo'
+import dotenv from 'dotenv'
+
+// Cargar variables de entorno
+dotenv.config()
 
 // Flujos
 import { mensajeBienvenida, validarUsuario } from './flows/flowLogin.js'
@@ -15,12 +19,10 @@ const PORT = process.env.PORT ?? 3008
 const main = async () => {
   const adapterFlow = createFlow([mensajeBienvenida, validarUsuario, menu, generarTicket, flowTicket_TIPO, flowTicket_DESC, flowTicket_ENVIO, flowConsulta])
   const adapterProvider = createProvider(Provider)
+  
   const adapterDB = new Database({
-    host: process.env.POSTGRES_DB_HOST,
-    user: process.env.POSTGRES_DB_USER,
-    database: process.env.POSTGRES_DB_NAME,
-    password: process.env.POSTGRES_DB_PASSWORD,
-    port: process.env.POSTGRES_DB_PORT
+    dbUri: process.env.MONGO_DB_URI,
+    dbName: process.env.MONGO_DB_NAME,
   })
 
   const { handleCtx, httpServer } = await createBot({
