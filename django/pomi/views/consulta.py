@@ -80,34 +80,29 @@ class ChatWebhookView(APIView):
         
         #1. Enviar a Rasa
         body = {"sender_id": sender, "message": user_text}
-        print(f"{RASA_URL}")
+        print(f"🔄 RASA_URL: {RASA_URL}")
         
-        
-        # try:    
-        #     with httpx.Client(timeout=360.0) as client:
-        #         r = client.post(f"{RASA_URL}", json=body)
-        #         r.raise_for_status()
-        #         rasa_msg = r.json() # Rptas de Rasa
-        # except httpx.HTTPError as e:
-        #     print(f"detail: {str(e)}")
-        #     return Response({"detail": str(e), "response": str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+        # Variable para controlar si usar OpenAI
+        use_openai_fallback = False
+        rasa_msg = []
+        rasa_error_detail = ""
         
         try:
-            
             print(f"🔄 Enviando request a Rasa: {RASA_URL}")
             print(f"📦 Body enviado: {body}")
             
             r = requests.post(
                 RASA_URL, 
                 json=body, 
-                timeout=30  # Timeout de 30 segundos
+                timeout=5  # Timeout de 30 segundos
             )
             r.raise_for_status()
             
             # Validar que la respuesta no esté vacía
             if not r.content:
                 print("❌ Respuesta vacía de Rasa")
-                rasa_msg = []
+                use_openai_fallback = True
+                rasa_error_detail = "Respuesta vacía de Rasa"
             else:
                 try:
                     rasa_msg = r.json()  # Rptas de Rasa
@@ -116,215 +111,183 @@ class ChatWebhookView(APIView):
                 except json.JSONDecodeError as json_error:
                     print(f"❌ Error al parsear JSON de Rasa: {json_error}")
                     print(f"📄 Contenido crudo: {r.text[:200]}...")
-                    rasa_msg = []
+                    use_openai_fallback = True
+                    rasa_error_detail = f"Error al parsear JSON: {json_error}"
                     
         except requests.Timeout:
-            print("⏰ Timeout al conectar con Rasa")
-            return Response(
-                {"detail": "Timeout al conectar con el servicio de chat", "response": "❌ El servicio está tardando más de lo esperado. Intenta nuevamente."}, 
-                status=status.HTTP_504_GATEWAY_TIMEOUT
-            )
+            print("⏰ Timeout al conectar con Rasa - usando OpenAI como fallback")
+            use_openai_fallback = True
+            rasa_error_detail = "Timeout al conectar con Rasa"
+            
         except requests.ConnectionError:
-            print("🔌 Error de conexión con Rasa")
-            return Response(
-                {"detail": "Error de conexión con el servicio de chat", "response": "❌ No se puede conectar con el servicio de chat. Intenta más tarde."}, 
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
-            )
+            print("🔌 Error de conexión con Rasa - usando OpenAI como fallback")
+            use_openai_fallback = True
+            rasa_error_detail = "Error de conexión con Rasa"
+            
         except requests.RequestException as e:
-            print(f"❌ Error de request: {str(e)}")
-            return Response(
-                {"detail": str(e), "response": "❌ Error al procesar tu consulta. Intenta nuevamente."}, 
-                status=status.HTTP_502_BAD_GATEWAY
-            )
+            print(f"❌ Error de request con Rasa: {str(e)} - usando OpenAI como fallback")
+            use_openai_fallback = True
+            rasa_error_detail = f"Error de request: {str(e)}"
         
         
-        # Medir tiempo de fin
+        # Medir tiempo de fin de Rasa
         end_time = time.time()
         response_time = end_time - start_time
         
-        # Procesar respuesta de Rasa de forma más robusta
+        # Procesar respuesta de Rasa solo si no hubo error de conexión
         whatsapp_msgs = []
+        final_msg = ""
         
-        # Validar que rasa_msg no sea None o vacío
-        if not rasa_msg:
-            print("⚠️ Respuesta de Rasa vacía o None")
-            whatsapp_msgs = ["❌ No puedo responder ahora."]
-        elif isinstance(rasa_msg, dict):
-            print("📝 Procesando respuesta como diccionario")
-            # Si es un diccionario, procesarlo directamente
-            if "response" in rasa_msg and rasa_msg["response"]:
-                whatsapp_msgs.append(str(rasa_msg["response"]))
-            elif "text" in rasa_msg and rasa_msg["text"]:
-                whatsapp_msgs.append(str(rasa_msg["text"]))
-            elif "custom" in rasa_msg and isinstance(rasa_msg["custom"], dict) and "gpt_response" in rasa_msg["custom"]:
-                whatsapp_msgs.append(str(rasa_msg["custom"]["gpt_response"]))
+        if not use_openai_fallback:
+            # Procesar respuesta de Rasa de forma más robusta
+            if not rasa_msg:
+                print("⚠️ Respuesta de Rasa vacía o None")
+                use_openai_fallback = True
+            elif isinstance(rasa_msg, dict):
+                print("📝 Procesando respuesta como diccionario")
+                if "response" in rasa_msg and rasa_msg["response"]:
+                    whatsapp_msgs.append(str(rasa_msg["response"]))
+                elif "text" in rasa_msg and rasa_msg["text"]:
+                    whatsapp_msgs.append(str(rasa_msg["text"]))
+                elif "custom" in rasa_msg and isinstance(rasa_msg["custom"], dict) and "gpt_response" in rasa_msg["custom"]:
+                    whatsapp_msgs.append(str(rasa_msg["custom"]["gpt_response"]))
+                else:
+                    print(f"⚠️ Estructura de diccionario no reconocida: {rasa_msg}")
+                    use_openai_fallback = True
+            elif isinstance(rasa_msg, list):
+                print(f"📝 Procesando respuesta como lista con {len(rasa_msg)} elementos")
+                for i, msg in enumerate(rasa_msg):
+                    print(f"  Elemento {i}: {type(msg)} - {msg}")
+                    if isinstance(msg, dict):
+                        if "text" in msg and msg["text"]:
+                            whatsapp_msgs.append(str(msg["text"]))
+                        elif "custom" in msg and isinstance(msg["custom"], dict) and "gpt_response" in msg["custom"]:
+                            whatsapp_msgs.append(str(msg["custom"]["gpt_response"]))
+                        elif "response" in msg and msg["response"]:
+                            whatsapp_msgs.append(str(msg["response"]))
+                    elif isinstance(msg, str) and msg.strip():
+                        whatsapp_msgs.append(msg.strip())
+            elif isinstance(rasa_msg, str):
+                print("📝 Procesando respuesta como string")
+                if rasa_msg.strip():
+                    whatsapp_msgs.append(rasa_msg.strip())
+                else:
+                    use_openai_fallback = True
             else:
-                print(f"⚠️ Estructura de diccionario no reconocida: {rasa_msg}")
-                whatsapp_msgs = ["❌ No puedo responder ahora."]
-        elif isinstance(rasa_msg, list):
-            print(f"📝 Procesando respuesta como lista con {len(rasa_msg)} elementos")
-            # Si es una lista, iterar sobre ella
-            for i, msg in enumerate(rasa_msg):
-                print(f"  Elemento {i}: {type(msg)} - {msg}")
-                if isinstance(msg, dict):
-                    if "text" in msg and msg["text"]:
-                        whatsapp_msgs.append(str(msg["text"]))
-                    elif "custom" in msg and isinstance(msg["custom"], dict) and "gpt_response" in msg["custom"]:
-                        whatsapp_msgs.append(str(msg["custom"]["gpt_response"]))
-                    elif "response" in msg and msg["response"]:
-                        whatsapp_msgs.append(str(msg["response"]))
-                elif isinstance(msg, str) and msg.strip():
-                    # Si es un string no vacío, añadirlo directamente
-                    whatsapp_msgs.append(msg.strip())
-        elif isinstance(rasa_msg, str):
-            print("📝 Procesando respuesta como string")
-            if rasa_msg.strip():
-                whatsapp_msgs.append(rasa_msg.strip())
+                print(f"⚠️ Tipo de respuesta no reconocido: {type(rasa_msg)}")
+                use_openai_fallback = True
+
+            # Limpiar mensajes vacíos y duplicados
+            whatsapp_msgs = [msg.strip() for msg in whatsapp_msgs if msg and msg.strip()]
+            whatsapp_msgs = list(dict.fromkeys(whatsapp_msgs))
+            
+            if whatsapp_msgs:
+                final_msg = "\n".join(whatsapp_msgs)
+                print(f"🔍 Mensaje final de Rasa: '{final_msg}'")
+                
+                # Verificar patrones de error en la respuesta
+                error_patterns = [
+                    "❌ no puedo responder ahora", "no puedo responder ahora",
+                    "no puedo responder", "lo siento, no pude procesar",
+                    "no entiendo", "disculpa, no comprendo",
+                    "no sé cómo ayudarte", "fallback", "default response", "acción default"
+                ]
+                
+                final_msg_normalized = final_msg.lower().strip()
+                
+                if any(pattern in final_msg_normalized for pattern in error_patterns):
+                    print(f"⚠️ Respuesta de Rasa contiene patrón de error")
+                    use_openai_fallback = True
+                
+                # Verificar si es muy genérico o corto
+                generic_responses = ["ok", "bien", "sí", "no", "gracias", "hola", "adiós"]
+                if len(final_msg_normalized) < 10 or final_msg_normalized in generic_responses:
+                    print(f"⚠️ Mensaje demasiado genérico o corto")
+                    use_openai_fallback = True
             else:
-                whatsapp_msgs = ["❌ No puedo responder ahora."]
-        else:
-            print(f"⚠️ Tipo de respuesta no reconocido: {type(rasa_msg)} - {rasa_msg}")
-            whatsapp_msgs = ["❌ No puedo responder ahora."]
-
-        # Si no hay mensajes extraídos después de todo el procesamiento
-        if not whatsapp_msgs or all(not msg.strip() for msg in whatsapp_msgs):
-            print("⚠️ No se pudieron extraer mensajes válidos")
-            whatsapp_msgs = ["❌ No puedo responder ahora."]
-
-        # Limpiar mensajes vacíos y duplicados
-        whatsapp_msgs = [msg.strip() for msg in whatsapp_msgs if msg and msg.strip()]
-        whatsapp_msgs = list(dict.fromkeys(whatsapp_msgs))  # Remover duplicados manteniendo orden
+                print("⚠️ No se pudieron extraer mensajes válidos de Rasa")
+                use_openai_fallback = True
         
-        final_msg = "\n".join(whatsapp_msgs)
-        print(f"🔍 Mensaje final de Rasa: '{final_msg}'")
-        print(f"📊 Longitud del mensaje: {len(final_msg)} caracteres")
-        
-        # Verificar si Rasa no pudo responder y usar OpenAI como fallback
-        # Verificamos múltiples variaciones del mensaje de error
-        error_patterns = [
-            "❌ no puedo responder ahora",
-            "no puedo responder ahora",
-            "no puedo responder",
-            "lo siento, no pude procesar",
-            "no entiendo",
-            "disculpa, no comprendo",
-            "no sé cómo ayudarte",
-            "fallback",
-            "default response",
-            "acción default"
-        ]
-        
-        # Normalizar el mensaje para comparación
-        final_msg_normalized = final_msg.lower().strip()
-        
-        # Verificar patrones de error
-        should_use_openai = any(
-            pattern in final_msg_normalized 
-            for pattern in error_patterns
-        )
-        
-        # También verificar si el mensaje es demasiado corto o genérico
-        if not should_use_openai:
-            generic_responses = [
-                "ok", "bien", "sí", "no", "gracias", "hola", "adiós",
-                "entiendo", "comprendo", "perfecto", "claro"
-            ]
-            if (
-                len(final_msg_normalized) < 10 or  # Muy corto
-                final_msg_normalized in generic_responses or  # Muy genérico
-                final_msg_normalized.startswith("acción ") or
-                final_msg_normalized.startswith("action ")
-            ):
-                should_use_openai = True
-                print(f"⚠️ Mensaje demasiado genérico o corto, usando OpenAI")
-        
-        print(f"🤖 ¿Debería usar OpenAI? {should_use_openai}")
-        print(f"🎯 Patrones encontrados: {[p for p in error_patterns if p in final_msg_normalized]}")
-        
-        if should_use_openai:
-            print("🤖 Rasa no pudo responder, usando OpenAI como fallback...")
+        # Si hay que usar OpenAI como fallback
+        if use_openai_fallback:
+            print(f"🤖 Usando OpenAI como fallback. Razón: {rasa_error_detail or 'Respuesta inadecuada de Rasa'}")
             
-            # Preparar datos para OpenAI con más contexto
-            openai_data = {
-                "query": user_text,
-                "context": f"El usuario escribió: '{user_text}'. Rasa respondió: '{final_msg}' pero necesitamos una mejor respuesta.",
-                "usuario_id": sender
-            }
-            
-            print(f"📤 Enviando a OpenAI: {openai_data}")
+            openai_context = f"El usuario preguntó: '{user_text}'."
+            if rasa_error_detail:
+                openai_context += f" Rasa falló: {rasa_error_detail}"
             
             try:
-                # Llamar a la función de OpenAI con timeout
                 openai_start_time = time.time()
                 openai_response = call_openai_directly(
-                    query=openai_data["query"],
-                    context=openai_data["context"],
-                    usuario_id=openai_data["usuario_id"]
+                    query=user_text,
+                    context=openai_context,
+                    usuario_id=sender
                 )
                 openai_response_time = time.time() - openai_start_time
                 
                 print(f"⏱️ OpenAI respondió en {openai_response_time:.2f} segundos")
-                print(f"📨 Respuesta completa de OpenAI: {openai_response}")
+                print(f"📨 Respuesta de OpenAI: {openai_response}")
                 
                 if openai_response and openai_response.get("status") == "ok":
                     openai_text = openai_response.get("response", "").strip()
-                    if openai_text and len(openai_text) > 5:  # Validar que no esté vacía
+                    if openai_text and len(openai_text) > 5:
                         final_msg = openai_text
-                        print(f"✅ OpenAI respondió exitosamente: {final_msg[:100]}...")
+                        print(f"✅ OpenAI respondió exitosamente")
                     else:
-                        print(f"⚠️ Respuesta de OpenAI vacía o muy corta: '{openai_text}'")
-                elif openai_response and openai_response.get("status") == "error":
-                    print(f"❌ OpenAI retornó error: {openai_response.get('error', 'Error desconocido')}")
+                        final_msg = "❌ Lo siento, no pude procesar tu consulta. Intenta reformular tu pregunta."
                 else:
-                    print(f"❌ Respuesta inesperada de OpenAI: {openai_response}")
+                    final_msg = "❌ Lo siento, no pude procesar tu consulta. Intenta más tarde."
                     
             except Exception as e:
-                print(f"❌ Excepción al llamar OpenAI: {str(e)}")
-                print(f"🔍 Tipo de error: {type(e).__name__}")
-                # Mantener la respuesta original de Rasa si falla OpenAI
-            
-            print(f"🏁 Mensaje final después de fallback: '{final_msg}'")
+                print(f"❌ Excepción en OpenAI: {str(e)}")
+                final_msg = "❌ Lo siento, no pude procesar tu consulta. Por favor, intenta nuevamente."
         
-        # Validaciones finales antes de guardar
+        # Validaciones finales
         if not final_msg or not final_msg.strip():
-            final_msg = "❌ Lo siento, no pude procesar tu consulta en este momento. Por favor, intenta reformular tu pregunta."
-            print("⚠️ Mensaje final vacío, usando respuesta de emergencia")
+            final_msg = "❌ Lo siento, no pude procesar tu consulta en este momento."
         
-        # Limitar longitud del mensaje si es muy largo
+        # Limpiar y formatear el mensaje correctamente
+        final_msg = final_msg.strip()
+        
+        # Reemplazar múltiples saltos de línea por uno solo
+        import re
+        final_msg = re.sub(r'\n{3,}', '\n\n', final_msg)
+        
+        # Eliminar espacios al inicio y final de cada línea
+        final_msg = '\n'.join(line.strip() for line in final_msg.split('\n'))
+        
         if len(final_msg) > 2000:
             final_msg = final_msg[:1997] + "..."
-            print("✂️ Mensaje truncado por ser muy largo")
         
-        print(f"💾 Mensaje final para guardar: '{final_msg}'")
-        print(f"⏱️ Tiempo total de procesamiento: {round(response_time, 4)} segundos")
+        # Calcular tiempo total
+        total_time = time.time() - start_time
+        
+        print(f"💾 Mensaje final: '{final_msg[:100]}...'")
+        print(f"⏱️ Tiempo total: {round(total_time, 4)} segundos")
         
         # Guardar consulta y respuesta en el histórico
         try:
             datos_feedbackgpt = {
                 "celular": celular,
-                "sender_id": sender,  # Agregar el sender_id
+                "sender_id": sender,
                 "pregunta": user_text,
                 "respuesta": final_msg,
-                "tiempo": round(response_time, 4)  # Limitar a 4 decimales
+                "tiempo": round(total_time, 4)
             }
             
             nuevo_registro = guardar_historico(datos_feedbackgpt)
-            print(f"✅ Registro guardado en histórico: ID {nuevo_registro.id if hasattr(nuevo_registro, 'id') else 'N/A'}")
+            print(f"✅ Registro guardado: ID {nuevo_registro.id if hasattr(nuevo_registro, 'id') else 'N/A'}")
             
         except Exception as e:
-            print(f"❌ Error al guardar en histórico: {str(e)}")
-            print(f"📱 Celular que causó el error: {celular}")
-            print(f"🔍 Tipo de error: {type(e).__name__}")
-            # Continuar con la respuesta aunque falle el guardado
-        
-        print(f"🎯 Respuesta final enviada al usuario: {final_msg}")
+            print(f"❌ Error al guardar: {str(e)}")
         
         # Retornar la respuesta adaptada
         return Response(
             {
                 "response": final_msg,
-                "processing_time": round(response_time, 4),
-                "timestamp": timezone.now().isoformat()
+                "processing_time": round(total_time, 4),
+                "timestamp": timezone.now().isoformat(),
+                "fallback_used": use_openai_fallback
             },
             status=status.HTTP_200_OK
         )

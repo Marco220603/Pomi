@@ -25,4 +25,4 @@ urlpatterns = [
   # - Consulta
   path('api/consulta-rasa/', ChatWebhookView.as_view(), name="consulta-rasa-api"),
   path('api/gpt_response/', gpt_response, name="gpt_response"),
-]
+] 
