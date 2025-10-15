@@ -1,0 +1,3 @@
+ignoredBuiltDependencies:
+  - '@leifermendez/baileys'
+  - protobufjs

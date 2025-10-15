@@ -11,14 +11,15 @@
   },
   "keywords": [],
   "dependencies": {
-    "@builderbot/bot": "^1.3.1",
-    "@builderbot/database-mongo": "1.3.1",
-    "@builderbot/provider-baileys": "^1.3.0",
+    "@builderbot/bot": "1.3.2-y.0",
+    "@builderbot/database-mongo": "1.3.2-y.0",
+    "@builderbot/provider-baileys": "1.3.2-y.0",
     "axios": "^1.7.2",
-    "dotenv": "^16.4.5"
+    "dotenv": "^17.2.3",
+    "jimp": "^1.6.0"
   },
   "devDependencies": {
-    "eslint": "^8.57.0",
+    "eslint": "^8.57.1",
     "eslint-plugin-builderbot": "latest",
     "nodemon": "^3.1.0"
   },

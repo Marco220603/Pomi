@@ -18,7 +18,9 @@ const PORT = process.env.PORT ?? 3008
 
 const main = async () => {
   const adapterFlow = createFlow([mensajeBienvenida, validarUsuario, menu, generarTicket, flowTicket_TIPO, flowTicket_DESC, flowTicket_ENVIO, flowConsulta])
-  const adapterProvider = createProvider(Provider)
+  const adapterProvider = createProvider(Provider,{
+    version: [2, 3000, 1025190524]
+  })
   
   const adapterDB = new Database({
     dbUri: process.env.MONGO_DB_URI,
