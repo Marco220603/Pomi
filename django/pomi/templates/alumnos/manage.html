@@ -22,10 +22,18 @@
     </div>
 
     <div class="actions__right">
-      <form method="get" class="search" role="search" aria-label="Buscar alumnos">
+      <form method="get" action="{% url 'pomi:alumnos' %}" class="search" role="search" aria-label="Buscar alumnos">
         <i data-lucide="search" class="search__icon"></i>
-        <input name="q" class="search__input" placeholder="Buscar por código, nombres o carrera…" value="{{ request.GET.q|default:'' }}">
+        <input name="q" class="search__input" placeholder="Buscar por código, nombres o carrera…" value="{{ request.GET.q|default:'' }}" autocomplete="off">
       </form>
+
+      <a href="{% url 'pomi:alumnos_csv' %}" class="btn btn--secondary" title="Descargar CSV">
+        <i data-lucide="download"></i> Descargar CSV
+      </a>
+
+      <button type="button" class="btn btn--secondary" id="btnBulkLoad">
+        <i data-lucide="upload"></i> Carga masiva
+      </button>
 
       <button type="button" class="btn btn--primary" id="btnNew">
         <i data-lucide="plus"></i> Nuevo alumno
@@ -95,6 +103,57 @@
         </tbody>
       </table>
     </div>
+    
+    <!-- Paginación - Siempre visible si hay datos -->
+    {% if alumnos %}
+    <div class="table-pagination">
+      <div class="pagination-info">
+        <span>
+          Mostrando {{ alumnos.start_index }} - {{ alumnos.end_index }} de {{ total_alumnos }} alumno{{ total_alumnos|pluralize }}
+        </span>
+      </div>
+      
+      {% if alumnos.paginator.num_pages > 1 %}
+      <div class="pagination-controls">
+        {% if alumnos.has_previous %}
+          <a href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="pagination-btn" title="Primera página">
+            <i data-lucide="chevrons-left"></i>
+          </a>
+          <a href="?page={{ alumnos.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="pagination-btn" title="Anterior">
+            <i data-lucide="chevron-left"></i>
+          </a>
+        {% else %}
+          <span class="pagination-btn pagination-btn--disabled">
+            <i data-lucide="chevrons-left"></i>
+          </span>
+          <span class="pagination-btn pagination-btn--disabled">
+            <i data-lucide="chevron-left"></i>
+          </span>
+        {% endif %}
+        
+        <span class="pagination-current">
+          Página {{ alumnos.number }} de {{ alumnos.paginator.num_pages }}
+        </span>
+        
+        {% if alumnos.has_next %}
+          <a href="?page={{ alumnos.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="pagination-btn" title="Siguiente">
+            <i data-lucide="chevron-right"></i>
+          </a>
+          <a href="?page={{ alumnos.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="pagination-btn" title="Última página">
+            <i data-lucide="chevrons-right"></i>
+          </a>
+        {% else %}
+          <span class="pagination-btn pagination-btn--disabled">
+            <i data-lucide="chevron-right"></i>
+          </span>
+          <span class="pagination-btn pagination-btn--disabled">
+            <i data-lucide="chevrons-right"></i>
+          </span>
+        {% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 </section>
 
@@ -183,6 +242,182 @@
   </div>
 </div>
 
+<!-- Modal Carga Masiva -->
+<div class="modal" id="modalBulk" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="modal__panel modal__panel--xl">
+    <header class="modal__head">
+      <h3 id="bulkTitle">Carga masiva de alumnos</h3>
+      <button class="modal__close" type="button" data-close><i data-lucide="x"></i></button>
+    </header>
+
+    <div class="bulk-container">
+      <!-- Step 1: Selección de modo -->
+      <div id="stepMode" class="bulk-step active">
+        <div class="bulk-info">
+          <i data-lucide="info"></i>
+          <p>Selecciona el modo de carga de datos. Puedes actualizar toda la base de datos o agregar nuevos alumnos.</p>
+        </div>
+        
+        <div class="mode-selector">
+          <button type="button" class="mode-card" data-mode="replace">
+            <i data-lucide="refresh-ccw"></i>
+            <h4>Actualizar todo</h4>
+            <p>Reemplaza completamente la base de datos con los nuevos datos del archivo</p>
+          </button>
+          
+          <button type="button" class="mode-card" data-mode="add">
+            <i data-lucide="user-plus"></i>
+            <h4>Agregar alumnos</h4>
+            <p>Agrega nuevos alumnos sin eliminar los existentes</p>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: Carga de archivo -->
+      <div id="stepUpload" class="bulk-step">
+        <div class="bulk-header">
+          <button type="button" class="btn-back" id="btnBackToMode">
+            <i data-lucide="arrow-left"></i> Volver
+          </button>
+          <span class="mode-badge" id="modeBadge"></span>
+        </div>
+
+        <div class="bulk-info bulk-info--important">
+          <i data-lucide="alert-circle"></i>
+          <div>
+            <strong>Formato requerido:</strong>
+            <p>El archivo debe contener las siguientes columnas <strong>en este orden exacto</strong>:</p>
+            <ol class="column-list">
+              <li><strong>code_upc</strong> - Código UPC del alumno (obligatorio, único)</li>
+              <li><strong>first_names</strong> - Nombres del alumno (obligatorio)</li>
+              <li><strong>full_names</strong> - Apellidos del alumno (obligatorio)</li>
+              <li><strong>career</strong> - Carrera del alumno (opcional)</li>
+              <li><strong>is_active</strong> - Estado: true/false, 1/0, si/no, activo/inactivo (opcional, por defecto: true)</li>
+            </ol>
+            <p style="margin-top:10px;">
+              <a href="{% url 'pomi:download_template' %}" class="template-link" download>
+                <i data-lucide="download"></i> Descargar plantilla de ejemplo
+              </a>
+            </p>
+          </div>
+        </div>
+
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="fileInput" accept=".csv,.xlsx" hidden>
+          <i data-lucide="upload-cloud"></i>
+          <h4>Arrastra tu archivo aquí o haz clic para seleccionar</h4>
+          <p>Formatos aceptados: CSV, XLSX (máx. 10MB)</p>
+        </div>
+
+        <div id="filePreview" class="file-preview" style="display:none;">
+          <div class="file-info">
+            <i data-lucide="file-text"></i>
+            <div class="file-details">
+              <strong id="fileName"></strong>
+              <span id="fileSize"></span>
+            </div>
+            <button type="button" class="btn-remove" id="btnRemoveFile">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="bulk-actions">
+          <button type="button" class="btn" data-close>Cancelar</button>
+          <button type="button" class="btn btn--primary" id="btnProcessFile" disabled>
+            <i data-lucide="check"></i> Procesar archivo
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 3: Vista previa y confirmación -->
+      <div id="stepPreview" class="bulk-step">
+        <div class="bulk-header">
+          <button type="button" class="btn-back" id="btnBackToUpload">
+            <i data-lucide="arrow-left"></i> Volver
+          </button>
+          <span class="mode-badge" id="modeBadge2"></span>
+        </div>
+
+        <div id="validationMessages"></div>
+
+        <div class="preview-stats">
+          <div class="stat-card stat-card--total">
+            <i data-lucide="file-text"></i>
+            <div>
+              <strong id="totalRows">0</strong>
+              <span>Registros totales</span>
+            </div>
+          </div>
+          <div class="stat-card stat-card--valid">
+            <i data-lucide="check-circle"></i>
+            <div>
+              <strong id="validRows">0</strong>
+              <span>Registros válidos</span>
+            </div>
+          </div>
+          <div class="stat-card stat-card--error">
+            <i data-lucide="alert-triangle"></i>
+            <div>
+              <strong id="errorRows">0</strong>
+              <span>Errores encontrados</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <div class="table-controls">
+            <span id="paginationInfo">Mostrando 0 - 0 de 0</span>
+            <div class="pagination-btns">
+              <button type="button" class="btn-pagination" id="btnPrevPage" disabled>
+                <i data-lucide="chevron-left"></i>
+              </button>
+              <span id="pageInfo">Página 1 de 1</span>
+              <button type="button" class="btn-pagination" id="btnNextPage" disabled>
+                <i data-lucide="chevron-right"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="table preview-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Estado</th>
+                  <th>Código UPC</th>
+                  <th>Nombres</th>
+                  <th>Apellidos</th>
+                  <th>Carrera</th>
+                  <th>Activo</th>
+                  <th>Errores</th>
+                </tr>
+              </thead>
+              <tbody id="previewTableBody">
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="bulk-actions">
+          <button type="button" class="btn" id="btnClearData">
+            <i data-lucide="trash-2"></i> Limpiar datos
+          </button>
+          <button type="button" class="btn btn--primary" id="btnConfirmBulk" disabled>
+            <i data-lucide="save"></i> <span id="confirmText">Confirmar carga</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Loading overlay -->
+      <div id="bulkLoading" class="bulk-loading" style="display:none;">
+        <div class="spinner"></div>
+        <p>Procesando archivo...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- JS mínimo para toggles y animación (no altera POST de Django) -->
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -220,16 +455,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // EDIT
   $$('.js-edit').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      console.log('Edit button clicked'); // Debug
+      e.stopPropagation();
       const row = btn.closest('tr');
+      if (!row) {
+        console.error('No se encontró la fila');
+        return;
+      }
       $('#formTitle').textContent = 'Editar alumno';
       fldAction.value = 'update';
       fldCode.value   = row.dataset.code;
-      fldCode.readOnly = true; // código como id
+      fldCode.readOnly = true;
       fldFirst.value  = row.dataset.first;
       fldFull.value   = row.dataset.full;
       fldCareer.value = row.dataset.career || '';
       fldActive.checked = row.dataset.active === 'true';
+      console.log('Opening modal...'); // Debug
       open(modalForm);
       setTimeout(()=>fldFirst.focus(), 80);
     });
@@ -237,10 +479,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // DELETE
   $$('.js-delete').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      console.log('Delete button clicked'); // Debug
+      e.stopPropagation();
       const row = btn.closest('tr');
+      if (!row) {
+        console.error('No se encontró la fila');
+        return;
+      }
       $('#delCode').value  = row.dataset.code;
       $('#delLabel').textContent = row.dataset.code + ' - ' + row.dataset.first + ' ' + row.dataset.full;
+      console.log('Opening delete modal...'); // Debug
       open(modalDel);
     });
   });
@@ -256,6 +505,383 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }, {threshold:.1});
   $$('.row-animate').forEach(r=>io.observe(r));
+
+  // Renderizar iconos de paginación
+  setTimeout(() => { try { lucide.createIcons(); } catch(e) {} }, 200);
+
+  // Mejorar comportamiento del formulario de búsqueda
+  const searchForm = document.querySelector('.search');
+  const searchInput = $('.search__input');
+  
+  // Prevenir envío accidental del formulario con Enter en cualquier parte de la página
+  document.addEventListener('keydown', (e) => {
+    // Si se presiona Enter y NO estamos en un textarea, input de submit, o botón
+    if (e.key === 'Enter') {
+      const target = e.target;
+      const tagName = target.tagName.toLowerCase();
+      
+      // Solo permitir Enter en el campo de búsqueda
+      if (tagName === 'input' && target.name === 'q') {
+        // Permitir que el formulario de búsqueda se envíe
+        return;
+      }
+      
+      // Si estamos en un modal o formulario que no es de búsqueda, permitir comportamiento normal
+      if (target.closest('.modal') || target.type === 'submit' || target.type === 'button') {
+        return;
+      }
+      
+      // En cualquier otro caso, prevenir el envío
+      if (tagName === 'input' && target.type !== 'submit' && target.type !== 'button') {
+        e.preventDefault();
+      }
+    }
+  });
+
+  // Prevenir atajos de teclado problemáticos globalmente
+  document.addEventListener('keydown', (e) => {
+    // Prevenir Ctrl+S (guardar)
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+    
+    // Prevenir Ctrl+O (abrir archivo)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+    
+    // Prevenir Ctrl+P (imprimir) si no estamos en un contexto apropiado
+    if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+      const target = e.target;
+      // Solo permitir en inputs/textareas
+      if (target.tagName.toLowerCase() !== 'input' && target.tagName.toLowerCase() !== 'textarea') {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    }
+  }, true); // Captura en fase de captura para mayor control
+
+  // ============ CARGA MASIVA ============
+  const modalBulk = $('#modalBulk');
+  const btnBulkLoad = $('#btnBulkLoad');
+  const stepMode = $('#stepMode');
+  const stepUpload = $('#stepUpload');
+  const stepPreview = $('#stepPreview');
+  
+  let currentMode = null;
+  let uploadedFile = null;
+  let parsedData = [];
+  let currentPage = 1;
+  const rowsPerPage = 10;
+
+  // Abrir modal carga masiva
+  btnBulkLoad?.addEventListener('click', () => {
+    resetBulkModal();
+    open(modalBulk);
+    setTimeout(() => { try { lucide.createIcons(); } catch(e) {} }, 100);
+  });
+
+  // Selección de modo
+  $$('.mode-card').forEach(card => {
+    card.addEventListener('click', () => {
+      currentMode = card.dataset.mode;
+      showStep('upload');
+      updateModeBadge();
+    });
+  });
+
+  // Navegación
+  $('#btnBackToMode')?.addEventListener('click', () => showStep('mode'));
+  $('#btnBackToUpload')?.addEventListener('click', () => showStep('upload'));
+
+  // Upload zone
+  const uploadZone = $('#uploadZone');
+  const fileInput = $('#fileInput');
+  const filePreview = $('#filePreview');
+  const btnRemoveFile = $('#btnRemoveFile');
+  const btnProcessFile = $('#btnProcessFile');
+
+  uploadZone?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    fileInput.click();
+  });
+  
+  uploadZone?.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    uploadZone.classList.add('dragover');
+  });
+  
+  uploadZone?.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    uploadZone.classList.remove('dragover');
+  });
+  
+  uploadZone?.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    uploadZone.classList.remove('dragover');
+    const files = e.dataTransfer.files;
+    if (files.length > 0) handleFileSelect(files[0]);
+  });
+
+  fileInput?.addEventListener('change', (e) => {
+    e.stopPropagation();
+    if (e.target.files.length > 0) handleFileSelect(e.target.files[0]);
+  });
+
+  btnRemoveFile?.addEventListener('click', () => {
+    uploadedFile = null;
+    fileInput.value = '';
+    filePreview.style.display = 'none';
+    uploadZone.style.display = 'flex';
+    btnProcessFile.disabled = true;
+  });
+
+  btnProcessFile?.addEventListener('click', processFile);
+
+  // Paginación
+  $('#btnPrevPage')?.addEventListener('click', () => changePage(-1));
+  $('#btnNextPage')?.addEventListener('click', () => changePage(1));
+
+  // Acciones finales
+  $('#btnClearData')?.addEventListener('click', () => {
+    // Limpiar archivo cargado
+    uploadedFile = null;
+    fileInput.value = '';
+    filePreview.style.display = 'none';
+    uploadZone.style.display = 'flex';
+    btnProcessFile.disabled = true;
+    parsedData = [];
+    currentPage = 1;
+    // Volver al paso de carga
+    showStep('upload');
+  });
+  $('#btnConfirmBulk')?.addEventListener('click', confirmBulkLoad);
+
+  function showStep(step) {
+    $$('.bulk-step').forEach(s => s.classList.remove('active'));
+    if (step === 'mode') stepMode.classList.add('active');
+    else if (step === 'upload') stepUpload.classList.add('active');
+    else if (step === 'preview') stepPreview.classList.add('active');
+    try { lucide.createIcons(); } catch(e) {}
+  }
+
+  function updateModeBadge() {
+    const text = currentMode === 'replace' ? 'Actualizar todo' : 'Agregar alumnos';
+    const icon = currentMode === 'replace' ? 'refresh-ccw' : 'user-plus';
+    [$('#modeBadge'), $('#modeBadge2')].forEach(badge => {
+      if(badge) badge.innerHTML = `<i data-lucide="${icon}"></i> ${text}`;
+    });
+    $('#confirmText').textContent = currentMode === 'replace' ? 'Confirmar actualización' : 'Confirmar agregación';
+    try { lucide.createIcons(); } catch(e) {}
+  }
+
+  function handleFileSelect(file) {
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const validTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+    
+    if (file.size > maxSize) {
+      alert('El archivo es demasiado grande. Máximo 10MB.');
+      return;
+    }
+    
+    if (!validTypes.includes(file.type) && !file.name.match(/\.(csv|xlsx)$/i)) {
+      alert('Formato no válido. Solo se aceptan archivos CSV o XLSX.');
+      return;
+    }
+
+    uploadedFile = file;
+    $('#fileName').textContent = file.name;
+    $('#fileSize').textContent = formatFileSize(file.size);
+    filePreview.style.display = 'flex';
+    uploadZone.style.display = 'none';
+    btnProcessFile.disabled = false;
+    try { lucide.createIcons(); } catch(e) {}
+  }
+
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  }
+
+  async function processFile() {
+    if (!uploadedFile) return;
+
+    $('#bulkLoading').style.display = 'flex';
+
+    const formData = new FormData();
+    formData.append('file', uploadedFile);
+    formData.append('mode', currentMode);
+
+    try {
+      const response = await fetch("{% url 'pomi:process_bulk_file' %}", {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: formData
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        parsedData = result.data;
+        displayPreview();
+        showStep('preview');
+      } else {
+        alert('Error al procesar archivo: ' + (result.error || 'Error desconocido'));
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error al procesar el archivo. Verifica el formato.');
+    } finally {
+      $('#bulkLoading').style.display = 'none';
+    }
+  }
+
+  function displayPreview() {
+    const validData = parsedData.filter(row => row.errors.length === 0);
+    const errorData = parsedData.filter(row => row.errors.length > 0);
+
+    $('#totalRows').textContent = parsedData.length;
+    $('#validRows').textContent = validData.length;
+    $('#errorRows').textContent = errorData.length;
+
+    // Mostrar mensajes de validación
+    const validationMsgs = $('#validationMessages');
+    validationMsgs.innerHTML = '';
+    
+    if (errorData.length > 0) {
+      validationMsgs.innerHTML = `
+        <div class="bulk-info bulk-info--warning">
+          <i data-lucide="alert-triangle"></i>
+          <p><strong>Se encontraron ${errorData.length} error(es).</strong> Los registros con errores no serán procesados. Revisa la tabla para más detalles.</p>
+        </div>
+      `;
+    } else {
+      validationMsgs.innerHTML = `
+        <div class="bulk-info bulk-info--success">
+          <i data-lucide="check-circle"></i>
+          <p><strong>¡Validación exitosa!</strong> Todos los registros son válidos y están listos para ser procesados.</p>
+        </div>
+      `;
+    }
+
+    $('#btnConfirmBulk').disabled = validData.length === 0;
+    currentPage = 1;
+    renderPage();
+    try { lucide.createIcons(); } catch(e) {}
+  }
+
+  function renderPage() {
+    const start = (currentPage - 1) * rowsPerPage;
+    const end = start + rowsPerPage;
+    const pageData = parsedData.slice(start, end);
+    const totalPages = Math.ceil(parsedData.length / rowsPerPage);
+
+    const tbody = $('#previewTableBody');
+    tbody.innerHTML = pageData.map((row, idx) => {
+      const rowNumber = start + idx + 1;
+      const statusClass = row.errors.length === 0 ? 'status-valid' : 'status-error';
+      const statusIcon = row.errors.length === 0 ? 'check-circle' : 'x-circle';
+      
+      return `
+        <tr class="${statusClass}">
+          <td>${rowNumber}</td>
+          <td><i data-lucide="${statusIcon}"></i></td>
+          <td class="mono">${row.code_upc || '—'}</td>
+          <td>${row.first_names || '—'}</td>
+          <td>${row.full_names || '—'}</td>
+          <td>${row.career || '—'}</td>
+          <td>${row.is_active ? 'Sí' : 'No'}</td>
+          <td class="cell-errors">${row.errors.length > 0 ? row.errors.join(', ') : '—'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    $('#paginationInfo').textContent = `Mostrando ${start + 1} - ${Math.min(end, parsedData.length)} de ${parsedData.length}`;
+    $('#pageInfo').textContent = `Página ${currentPage} de ${totalPages}`;
+    $('#btnPrevPage').disabled = currentPage === 1;
+    $('#btnNextPage').disabled = currentPage === totalPages;
+
+    try { lucide.createIcons(); } catch(e) {}
+  }
+
+  function changePage(delta) {
+    const totalPages = Math.ceil(parsedData.length / rowsPerPage);
+    const newPage = currentPage + delta;
+    if (newPage >= 1 && newPage <= totalPages) {
+      currentPage = newPage;
+      renderPage();
+    }
+  }
+
+  async function confirmBulkLoad() {
+    const validData = parsedData.filter(row => row.errors.length === 0);
+    
+    if (validData.length === 0) {
+      alert('No hay datos válidos para procesar.');
+      return;
+    }
+
+    const confirmMsg = currentMode === 'replace' 
+      ? `¿Estás seguro de REEMPLAZAR toda la base de datos con ${validData.length} registro(s)? Esta acción eliminará todos los alumnos existentes.`
+      : `¿Estás seguro de agregar ${validData.length} nuevo(s) alumno(s)?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    $('#bulkLoading').style.display = 'flex';
+
+    try {
+      const response = await fetch("{% url 'pomi:confirm_bulk_load' %}", {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          mode: currentMode,
+          data: validData
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        alert(`✓ Operación exitosa: ${result.message}`);
+        close(modalBulk);
+        location.reload();
+      } else {
+        alert('Error: ' + (result.error || 'Error desconocido'));
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error al procesar la carga masiva.');
+    } finally {
+      $('#bulkLoading').style.display = 'none';
+    }
+  }
+
+  function resetBulkModal() {
+    currentMode = null;
+    uploadedFile = null;
+    parsedData = [];
+    currentPage = 1;
+    fileInput.value = '';
+    filePreview.style.display = 'none';
+    uploadZone.style.display = 'flex';
+    btnProcessFile.disabled = true;
+    showStep('mode');
+  }
 });
 </script>
 
