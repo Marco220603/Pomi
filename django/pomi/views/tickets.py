@@ -15,18 +15,57 @@ def attend_tickets(request):
         
         # Datos
         mensaje_respuesta = request.POST.get('rpta_ticket', '').strip()
-        if not mensaje_respuesta or not codigo_ticket :
+        priority = request.POST.get('priority', 'Media').strip()
+        state = request.POST.get('state', 'in_progress').strip()
+        
+        if not mensaje_respuesta or not codigo_ticket:
             messages.error(request, "Es necesario una respuesta")
             return redirect('pomi:tickets')
         
         # Actualizar los estados de los tickets
         ticket_obj = get_object_or_404(Ticket, codigo_ticket=codigo_ticket)
-        ticket_obj.state = "in_progress"
+        ticket_obj.state = state
+        ticket_obj.priority = priority
         ticket_obj.respuesta_anterior = ticket_obj.respuesta_actual
         ticket_obj.respuesta_actual = mensaje_respuesta
         ticket_obj.save()
-        messages.success(request, f"Alumno {codigo_ticket} actualizado.")
+        
+        # Enviar respuesta por WhatsApp al estudiante
+        try:
+            BUILDERBOT_URL = 'http://bountiful-vitality-production.up.railway.app'
+            
+            # Obtener datos del administrador (usuario autenticado)
+            admin_user = request.user
+            student_number = ticket_obj.student.phone_number
+            
+            texto = (
+                f"✅ *Respuesta a tu Ticket #{ticket_obj.codigo_ticket}*\n"
+                f"👨‍💼 Administrador: {admin_user.first_name} {admin_user.last_name}\n"
+                f"🎫 Título: {ticket_obj.subject}\n"
+                f"💬 Respuesta:\n{mensaje_respuesta}\n\n"
+            )
+            
+            import requests as req
+            response = req.post(
+                f"{BUILDERBOT_URL}/v1/sendAnswer",
+                json={
+                    "number": student_number,
+                    "message": texto
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                messages.success(request, f"Ticket {codigo_ticket} actualizado y respuesta enviada por WhatsApp.")
+            else:
+                messages.warning(request, f"Ticket {codigo_ticket} actualizado, pero no se pudo enviar WhatsApp.")
+                
+        except Exception as e:
+            print(f"Error enviando WhatsApp al estudiante: {e}")
+            messages.warning(request, f"Ticket {codigo_ticket} actualizado, pero hubo un error al enviar WhatsApp.")
+        
         return redirect('pomi:tickets')
+    
     # Lista los Tickets y atenderlos 
     else:
         all_tickets = Ticket.objects.all().order_by('created_at') if hasattr(Ticket, 'created_at') else Ticket.objects.all().order_by('codigo_ticket')
@@ -46,6 +85,7 @@ from rest_framework import status, permissions
 from pomi.apis.ticketSerializer import TicketSerializer, getTicket
 from pomi.apis.ticketServices import createTicket
 from pomi.apis.usuariosSerializers import AdminSerializer
+import requests
 
 class RegisterTicket(APIView):
     """
@@ -83,6 +123,38 @@ class RegisterTicket(APIView):
                 'persona_encargada': admin_serializer.data
             }
         }
+        
+        # NOTIFICAR AL ADMINISTRADOR QUE SE ESTA REGISTRANDO UN TICKET
+        try:
+            BUILDERBOT_URL = 'http://bountiful-vitality-production.up.railway.app'
+            FRONTEND_URL  = 'http://pomi-production.up.railway.app'
+            admin_number = admin_serializer.data.get('cellphone')
+            ticket_obj = result['ticket']
+            
+            if admin_number:
+                mensaje = (
+                    f"📢 *Nuevo Ticket #{ticket_obj.codigo_ticket}*\n"
+                    f"👤 Estudiante: {whatsappStudent.student.first_names} {whatsappStudent.student.full_names} ({whatsappStudent.phone_number})\n"
+                    f"🎫 Título: {ticket_obj.subject}\n"
+                    f"📂 Tipo: {ticket_obj.type_ticket}\n"
+                    f"⚡ Prioridad: {ticket_obj.priority}\n"
+                    f"📝 Descripción: {ticket_obj.description}\n\n"
+                    f"👉 Atendelo aquí: {FRONTEND_URL}/tickets/"
+                )
+                requests.post(
+                    f"{BUILDERBOT_URL}/v1/messages",
+                    json={
+                        "number": admin_number,
+                        "message": mensaje
+                    }
+                )
+                print(f"Notificación enviada a {admin_number}")
+            else:
+                print("No se encontró número de teléfono del administrador")
+        except Exception as e:
+            # Logealo; no queremos que el fallo de WhatsApp impida crear el ticket
+            print(f"Error enviando WhatsApp: {e}")
+            
         return Response(response_data, status=status.HTTP_200_OK)
 
 class getTicketAPI(APIView):

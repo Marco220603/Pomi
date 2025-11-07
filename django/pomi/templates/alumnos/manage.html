@@ -8,35 +8,36 @@
 {% endblock %}
 
 {% block content %}
-
-<!-- Contenedor principal de CRUD -->
-<section class="students">
-  <!-- Barra de acciones -->
-  <header class="students__actions" aria-label="Acciones">
+<section class="alumnos" aria-labelledby="alumnosTitle">
+  <!-- Encabezado / acciones -->
+  <header class="alumnos__actions" aria-label="Acciones de alumnos">
     <div class="actions__left">
-      <h1 class="students__title">
+      <h1 id="alumnosTitle" class="alumnos__title">
         Alumnos
         <span class="title__shine" aria-hidden="true"></span>
       </h1>
-      <p class="students__subtitle">{{ page_subtitle|default:"" }}</p>
+      <p class="alumnos__subtitle">{{ page_subtitle|default:"Gestión de estudiantes" }}</p>
     </div>
 
     <div class="actions__right">
-      <form method="get" action="{% url 'pomi:alumnos' %}" class="search" role="search" aria-label="Buscar alumnos">
+      <form method="get" class="search" role="search" aria-label="Buscar alumnos">
         <i data-lucide="search" class="search__icon"></i>
-        <input name="q" class="search__input" placeholder="Buscar por código, nombres o carrera…" value="{{ request.GET.q|default:'' }}" autocomplete="off">
+        <input name="q" class="search__input" placeholder="Buscar por código, nombre, apellido o carrera…" value="{{ request.GET.q|default:'' }}">
       </form>
 
-      <a href="{% url 'pomi:alumnos_csv' %}" class="btn btn--secondary" title="Descargar CSV">
-        <i data-lucide="download"></i> Descargar CSV
-      </a>
-
-      <button type="button" class="btn btn--secondary" id="btnBulkLoad">
-        <i data-lucide="upload"></i> Carga masiva
+      <button type="button" class="btn" id="btnExportCSV" title="Exportar CSV">
+        <i data-lucide="download"></i>
+        CSV
       </button>
 
-      <button type="button" class="btn btn--primary" id="btnNew">
-        <i data-lucide="plus"></i> Nuevo alumno
+      <button type="button" class="btn btn--primary" id="btnAddStudent" title="Agregar alumno">
+        <i data-lucide="user-plus"></i>
+        Agregar
+      </button>
+
+      <button type="button" class="btn btn--special" id="btnBulkLoad" title="Carga masiva">
+        <i data-lucide="upload"></i>
+        Carga masiva
       </button>
     </div>
   </header>
@@ -49,6 +50,24 @@
       {% endfor %}
     </div>
   {% endif %}
+
+  <!-- Estadísticas rápidas -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat__icon"><i data-lucide="users"></i></div>
+      <div class="stat__body">
+        <div class="stat__value">{{ total_alumnos|default:0 }}</div>
+        <div class="stat__label">Total estudiantes</div>
+      </div>
+    </div>
+    <div class="stat">
+      <div class="stat__icon stat__icon--ok"><i data-lucide="check-circle-2"></i></div>
+      <div class="stat__body">
+        <div class="stat__value">{{ alumnos.paginator.count|default:0 }}</div>
+        <div class="stat__label">Resultados encontrados</div>
+      </div>
+    </div>
+  </div>
 
   <!-- Tabla -->
   <div class="card table-card">
@@ -65,29 +84,29 @@
           </tr>
         </thead>
         <tbody>
-          {% for a in alumnos %}
-          <tr class="row-animate" 
-              data-code="{{ a.code_upc }}"
-              data-first="{{ a.first_names|escape }}"
-              data-full="{{ a.full_names|escape }}"
-              data-career="{{ a.career|default:''|escape }}"
-              data-active="{{ a.is_active|yesno:'true,false' }}">
-            <td class="mono">{{ a.code_upc }}</td>
-            <td>{{ a.first_names }}</td>
-            <td>{{ a.full_names }}</td>
-            <td><span class="badge badge--soft">{{ a.career|default:"—" }}</span></td>
+          {% for alumno in alumnos %}
+          <tr class="row-animate"
+              data-code="{{ alumno.code_upc }}"
+              data-first="{{ alumno.first_names|escape }}"
+              data-full="{{ alumno.full_names|escape }}"
+              data-career="{{ alumno.career|default:''|escape }}"
+              data-active="{{ alumno.is_active|yesno:'true,false' }}">
+            <td class="mono">{{ alumno.code_upc }}</td>
+            <td>{{ alumno.first_names }}</td>
+            <td>{{ alumno.full_names }}</td>
+            <td class="soft">{{ alumno.career|default:"—" }}</td>
             <td>
-              {% if a.is_active %}
+              {% if alumno.is_active %}
                 <span class="pill pill--ok"><i data-lucide="check-circle-2"></i> Activo</span>
               {% else %}
                 <span class="pill pill--off"><i data-lucide="x-circle"></i> Inactivo</span>
               {% endif %}
             </td>
             <td class="actions">
-              <button type="button" class="icon-btn js-edit" title="Editar">
-                <i data-lucide="pencil-line"></i>
+              <button type="button" class="icon-btn js-edit" title="Editar alumno">
+                <i data-lucide="edit-2"></i>
               </button>
-              <button type="button" class="icon-btn icon-btn--danger js-delete" title="Eliminar">
+              <button type="button" class="icon-btn icon-btn--danger js-delete" title="Eliminar alumno">
                 <i data-lucide="trash-2"></i>
               </button>
             </td>
@@ -95,115 +114,97 @@
           {% empty %}
           <tr>
             <td colspan="6" class="empty">
-              <i data-lucide="user-round"></i>
-              No hay alumnos registrados.
+              <i data-lucide="inbox"></i>
+              No hay estudiantes registrados.
             </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-    
-    <!-- Paginación - Siempre visible si hay datos -->
-    {% if alumnos %}
-    <div class="table-pagination">
-      <div class="pagination-info">
-        <span>
-          Mostrando {{ alumnos.start_index }} - {{ alumnos.end_index }} de {{ total_alumnos }} alumno{{ total_alumnos|pluralize }}
-        </span>
+
+    <!-- Paginación -->
+    {% if alumnos.has_other_pages %}
+    <div class="pagination">
+      <div class="pagination__info">
+        Mostrando {{ alumnos.start_index }} - {{ alumnos.end_index }} de {{ alumnos.paginator.count }} alumnos
       </div>
-      
-      {% if alumnos.paginator.num_pages > 1 %}
-      <div class="pagination-controls">
+      <div class="pagination__controls">
         {% if alumnos.has_previous %}
-          <a href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="pagination-btn" title="Primera página">
+          <a href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="page-btn" title="Primera página">
             <i data-lucide="chevrons-left"></i>
           </a>
-          <a href="?page={{ alumnos.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="pagination-btn" title="Anterior">
+          <a href="?page={{ alumnos.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="page-btn" title="Página anterior">
             <i data-lucide="chevron-left"></i>
           </a>
         {% else %}
-          <span class="pagination-btn pagination-btn--disabled">
-            <i data-lucide="chevrons-left"></i>
-          </span>
-          <span class="pagination-btn pagination-btn--disabled">
-            <i data-lucide="chevron-left"></i>
-          </span>
+          <span class="page-btn page-btn--disabled"><i data-lucide="chevrons-left"></i></span>
+          <span class="page-btn page-btn--disabled"><i data-lucide="chevron-left"></i></span>
         {% endif %}
-        
-        <span class="pagination-current">
-          Página {{ alumnos.number }} de {{ alumnos.paginator.num_pages }}
-        </span>
-        
+
+        <span class="page-current">Página {{ alumnos.number }} de {{ alumnos.paginator.num_pages }}</span>
+
         {% if alumnos.has_next %}
-          <a href="?page={{ alumnos.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="pagination-btn" title="Siguiente">
+          <a href="?page={{ alumnos.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="page-btn" title="Página siguiente">
             <i data-lucide="chevron-right"></i>
           </a>
-          <a href="?page={{ alumnos.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="pagination-btn" title="Última página">
+          <a href="?page={{ alumnos.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="page-btn" title="Última página">
             <i data-lucide="chevrons-right"></i>
           </a>
         {% else %}
-          <span class="pagination-btn pagination-btn--disabled">
-            <i data-lucide="chevron-right"></i>
-          </span>
-          <span class="pagination-btn pagination-btn--disabled">
-            <i data-lucide="chevrons-right"></i>
-          </span>
+          <span class="page-btn page-btn--disabled"><i data-lucide="chevron-right"></i></span>
+          <span class="page-btn page-btn--disabled"><i data-lucide="chevrons-right"></i></span>
         {% endif %}
       </div>
-      {% endif %}
     </div>
     {% endif %}
   </div>
 </section>
 
-<!-- Modal Create/Update -->
-<div class="modal" id="modalForm" aria-hidden="true" role="dialog" aria-modal="true">
+<!-- Modal Agregar/Editar Alumno -->
+<div class="modal" id="modalStudent" aria-hidden="true" role="dialog" aria-modal="true">
   <div class="modal__panel">
     <header class="modal__head">
-      <h3 id="formTitle">Nuevo alumno</h3>
+      <div>
+        <h3 id="studentTitle">Agregar estudiante</h3>
+        <small id="studentSubtitle" class="muted">Complete los datos del estudiante</small>
+      </div>
       <button class="modal__close" type="button" data-close>
         <i data-lucide="x"></i>
       </button>
     </header>
 
-    <form method="post" class="form" id="formStudent" action="{% url 'pomi:alumnos' %}">
+    <form method="post" class="form" id="formStudent">
       {% csrf_token %}
       <input type="hidden" name="action" id="fldAction" value="create">
 
       <div class="grid">
-        <div class="field">
+        <div class="field field--full">
           <label>Código UPC <span>*</span></label>
-          <input name="code_upc" id="fldCode" class="input" placeholder="2024XXXX" required>
+          <input type="text" name="code_upc" id="fldCodeUPC" class="input" placeholder="Ej: U202012345" required maxlength="10">
         </div>
 
         <div class="field">
           <label>Nombres <span>*</span></label>
-          <input name="first_names" id="fldFirst" class="input" placeholder="Nombres" required>
+          <input type="text" name="first_names" id="fldFirstNames" class="input" placeholder="Ej: Juan Carlos" required maxlength="100">
         </div>
 
         <div class="field">
           <label>Apellidos <span>*</span></label>
-          <input name="full_names" id="fldFull" class="input" placeholder="Apellidos" required>
+          <input type="text" name="full_names" id="fldFullNames" class="input" placeholder="Ej: Pérez García" required maxlength="100">
         </div>
 
-        <div class="field">
+        <div class="field field--full">
           <label>Carrera</label>
-          <div class="select">
-            <select name="career" id="fldCareer" class="input input--select">
-              <option value="Ing. de Sistemas">Ing. de Sistemas</option>
-              <option value="Ing. de Software">Ing. de Software</option>
-              <option value="C.C.">C.C.</option>
-            </select>
-          </div>
+          <input type="text" name="career" id="fldCareer" class="input" placeholder="Ej: Ingeniería de Sistemas" maxlength="50">
         </div>
 
-        <div class="checkline">
-          <label class="switch">
-            <input type="checkbox" name="is_active" id="fldActive" checked>
-            <span class="switch__ui"></span>
+        <div class="field field--full">
+          <label class="checkbox">
+            <input type="checkbox" name="is_active" id="fldIsActive" checked>
+            <span class="checkbox__mark"></span>
+            <span class="checkbox__label">Estudiante activo</span>
           </label>
-          <span>Activo</span>
         </div>
       </div>
 
@@ -218,25 +219,40 @@
   </div>
 </div>
 
-<!-- Modal Delete -->
+<!-- Modal Eliminar -->
 <div class="modal" id="modalDelete" aria-hidden="true" role="dialog" aria-modal="true">
   <div class="modal__panel modal__panel--sm">
     <header class="modal__head">
-      <h3>Eliminar alumno</h3>
-      <button class="modal__close" type="button" data-close><i data-lucide="x"></i></button>
+      <div>
+        <h3>Eliminar estudiante</h3>
+        <small class="muted">Esta acción no se puede deshacer</small>
+      </div>
+      <button class="modal__close" type="button" data-close>
+        <i data-lucide="x"></i>
+      </button>
     </header>
-    <form method="post" action="{% url 'pomi:alumnos' %}" class="form">
+
+    <form method="post" id="formDelete">
       {% csrf_token %}
       <input type="hidden" name="action" value="delete">
-      <input type="hidden" name="code_upc" id="delCode">
+      <input type="hidden" name="code_upc" id="fldDeleteCode">
 
-      <p class="confirm">
-        ¿Seguro que deseas eliminar al alumno <strong id="delLabel"></strong>?
-      </p>
+      <div class="modal__content">
+        <div class="alert alert--warning">
+          <i data-lucide="alert-triangle"></i>
+          <div>
+            <strong>¿Está seguro?</strong>
+            <p>Se eliminará el estudiante <strong id="deleteStudentName"></strong>. Esta acción es permanente.</p>
+          </div>
+        </div>
+      </div>
 
       <footer class="modal__foot">
         <button type="button" class="btn" data-close>Cancelar</button>
-        <button type="submit" class="btn btn--danger"><i data-lucide="trash-2"></i> Eliminar</button>
+        <button type="submit" class="btn btn--danger">
+          <i data-lucide="trash-2"></i>
+          Eliminar
+        </button>
       </footer>
     </form>
   </div>
@@ -244,645 +260,419 @@
 
 <!-- Modal Carga Masiva -->
 <div class="modal" id="modalBulk" aria-hidden="true" role="dialog" aria-modal="true">
-  <div class="modal__panel modal__panel--xl">
+  <div class="modal__panel modal__panel--lg">
     <header class="modal__head">
-      <h3 id="bulkTitle">Carga masiva de alumnos</h3>
-      <button class="modal__close" type="button" data-close><i data-lucide="x"></i></button>
+      <div>
+        <h3>Carga masiva de estudiantes</h3>
+        <small class="muted">Seleccione el tipo de carga</small>
+      </div>
+      <button class="modal__close" type="button" data-close>
+        <i data-lucide="x"></i>
+      </button>
     </header>
 
-    <div class="bulk-container">
-      <!-- Step 1: Selección de modo -->
-      <div id="stepMode" class="bulk-step active">
-        <div class="bulk-info">
-          <i data-lucide="info"></i>
-          <p>Selecciona el modo de carga de datos. Puedes actualizar toda la base de datos o agregar nuevos alumnos.</p>
-        </div>
-        
-        <div class="mode-selector">
-          <button type="button" class="mode-card" data-mode="replace">
-            <i data-lucide="refresh-ccw"></i>
-            <h4>Actualizar todo</h4>
-            <p>Reemplaza completamente la base de datos con los nuevos datos del archivo</p>
+    <div class="modal__content" id="bulkStep1">
+      <div class="bulk-options">
+        <div class="bulk-card" data-mode="replace">
+          <div class="bulk-card__icon bulk-card__icon--replace">
+            <i data-lucide="refresh-cw"></i>
+          </div>
+          <h4 class="bulk-card__title">Actualizar toda la base de datos</h4>
+          <p class="bulk-card__desc">Reemplaza todos los registros existentes con los datos del archivo</p>
+          <button type="button" class="btn btn--outline js-select-mode">
+            <i data-lucide="arrow-right"></i>
+            Seleccionar
           </button>
-          
-          <button type="button" class="mode-card" data-mode="add">
+        </div>
+
+        <div class="bulk-card" data-mode="add">
+          <div class="bulk-card__icon bulk-card__icon--add">
             <i data-lucide="user-plus"></i>
-            <h4>Agregar alumnos</h4>
-            <p>Agrega nuevos alumnos sin eliminar los existentes</p>
+          </div>
+          <h4 class="bulk-card__title">Agregar alumnos</h4>
+          <p class="bulk-card__desc">Añade nuevos estudiantes sin eliminar los existentes</p>
+          <button type="button" class="btn btn--outline js-select-mode">
+            <i data-lucide="arrow-right"></i>
+            Seleccionar
           </button>
         </div>
       </div>
+    </div>
 
-      <!-- Step 2: Carga de archivo -->
-      <div id="stepUpload" class="bulk-step">
-        <div class="bulk-header">
-          <button type="button" class="btn-back" id="btnBackToMode">
-            <i data-lucide="arrow-left"></i> Volver
-          </button>
-          <span class="mode-badge" id="modeBadge"></span>
+    <div class="modal__content hidden" id="bulkStep2">
+      <button type="button" class="btn btn--back" id="btnBackToBulk">
+        <i data-lucide="arrow-left"></i>
+        Volver
+      </button>
+
+      <div class="bulk-info">
+        <div class="info-box">
+          <div class="info-box__head">
+            <i data-lucide="info"></i>
+            <strong>Formato requerido</strong>
+          </div>
+          <div class="info-box__body">
+            <p>El archivo debe contener las siguientes columnas en este orden exacto:</p>
+            <ul class="info-list">
+              <li><code>code_upc</code> - Código UPC del alumno (obligatorio, único)</li>
+              <li><code>first_names</code> - Nombres del alumno (obligatorio)</li>
+              <li><code>full_names</code> - Apellidos del alumno (obligatorio)</li>
+              <li><code>career</code> - Carrera del alumno (opcional)</li>
+              <li><code>is_active</code> - Estado: true/false, 1/0, si/no, activo/inactivo (opcional, por defecto: true)</li>
+            </ul>
+          </div>
         </div>
 
-        <div class="bulk-info bulk-info--important">
-          <i data-lucide="alert-circle"></i>
+        <div class="template-download">
+          <i data-lucide="download"></i>
           <div>
-            <strong>Formato requerido:</strong>
-            <p>El archivo debe contener las siguientes columnas <strong>en este orden exacto</strong>:</p>
-            <ol class="column-list">
-              <li><strong>code_upc</strong> - Código UPC del alumno (obligatorio, único)</li>
-              <li><strong>first_names</strong> - Nombres del alumno (obligatorio)</li>
-              <li><strong>full_names</strong> - Apellidos del alumno (obligatorio)</li>
-              <li><strong>career</strong> - Carrera del alumno (opcional)</li>
-              <li><strong>is_active</strong> - Estado: true/false, 1/0, si/no, activo/inactivo (opcional, por defecto: true)</li>
-            </ol>
-            <p style="margin-top:10px;">
-              <a href="{% url 'pomi:download_template' %}" class="template-link" download>
-                <i data-lucide="download"></i> Descargar plantilla de ejemplo
-              </a>
-            </p>
+            <strong>¿No tienes una plantilla?</strong>
+            <p>Descarga el formato correcto para facilitar la carga</p>
           </div>
+          <a href="{% url 'pomi:download_template' %}" class="btn btn--outline">
+            <i data-lucide="file-down"></i>
+            Descargar plantilla
+          </a>
         </div>
+      </div>
 
-        <div class="upload-zone" id="uploadZone">
-          <input type="file" id="fileInput" accept=".csv,.xlsx" hidden>
+      <div class="upload-area" id="uploadArea">
+        <input type="file" id="fileInput" accept=".csv,.xlsx" hidden>
+        <div class="upload-area__icon">
           <i data-lucide="upload-cloud"></i>
-          <h4>Arrastra tu archivo aquí o haz clic para seleccionar</h4>
-          <p>Formatos aceptados: CSV, XLSX (máx. 10MB)</p>
         </div>
-
-        <div id="filePreview" class="file-preview" style="display:none;">
-          <div class="file-info">
-            <i data-lucide="file-text"></i>
-            <div class="file-details">
-              <strong id="fileName"></strong>
-              <span id="fileSize"></span>
-            </div>
-            <button type="button" class="btn-remove" id="btnRemoveFile">
-              <i data-lucide="x"></i>
-            </button>
-          </div>
-        </div>
-
-        <div class="bulk-actions">
-          <button type="button" class="btn" data-close>Cancelar</button>
-          <button type="button" class="btn btn--primary" id="btnProcessFile" disabled>
-            <i data-lucide="check"></i> Procesar archivo
-          </button>
+        <h4 class="upload-area__title">Arrastra tu archivo aquí</h4>
+        <p class="upload-area__desc">o haz clic para seleccionar</p>
+        <div class="upload-area__meta">
+          <span class="badge">CSV</span>
+          <span class="badge">XLSX</span>
+          <span class="muted">· Máximo 10MB</span>
         </div>
       </div>
 
-      <!-- Step 3: Vista previa y confirmación -->
-      <div id="stepPreview" class="bulk-step">
-        <div class="bulk-header">
-          <button type="button" class="btn-back" id="btnBackToUpload">
-            <i data-lucide="arrow-left"></i> Volver
-          </button>
-          <span class="mode-badge" id="modeBadge2"></span>
-        </div>
-
-        <div id="validationMessages"></div>
-
-        <div class="preview-stats">
-          <div class="stat-card stat-card--total">
+      <div class="upload-preview hidden" id="uploadPreview">
+        <div class="preview-file">
+          <div class="preview-file__icon">
             <i data-lucide="file-text"></i>
-            <div>
-              <strong id="totalRows">0</strong>
-              <span>Registros totales</span>
-            </div>
           </div>
-          <div class="stat-card stat-card--valid">
-            <i data-lucide="check-circle"></i>
-            <div>
-              <strong id="validRows">0</strong>
-              <span>Registros válidos</span>
-            </div>
+          <div class="preview-file__info">
+            <strong id="fileName"></strong>
+            <small id="fileSize" class="muted"></small>
           </div>
-          <div class="stat-card stat-card--error">
-            <i data-lucide="alert-triangle"></i>
-            <div>
-              <strong id="errorRows">0</strong>
-              <span>Errores encontrados</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="table-container">
-          <div class="table-controls">
-            <span id="paginationInfo">Mostrando 0 - 0 de 0</span>
-            <div class="pagination-btns">
-              <button type="button" class="btn-pagination" id="btnPrevPage" disabled>
-                <i data-lucide="chevron-left"></i>
-              </button>
-              <span id="pageInfo">Página 1 de 1</span>
-              <button type="button" class="btn-pagination" id="btnNextPage" disabled>
-                <i data-lucide="chevron-right"></i>
-              </button>
-            </div>
-          </div>
-
-          <div class="table-wrap">
-            <table class="table preview-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Estado</th>
-                  <th>Código UPC</th>
-                  <th>Nombres</th>
-                  <th>Apellidos</th>
-                  <th>Carrera</th>
-                  <th>Activo</th>
-                  <th>Errores</th>
-                </tr>
-              </thead>
-              <tbody id="previewTableBody">
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="bulk-actions">
-          <button type="button" class="btn" id="btnClearData">
-            <i data-lucide="trash-2"></i> Limpiar datos
-          </button>
-          <button type="button" class="btn btn--primary" id="btnConfirmBulk" disabled>
-            <i data-lucide="save"></i> <span id="confirmText">Confirmar carga</span>
+          <button type="button" class="icon-btn icon-btn--danger" id="btnRemoveFile">
+            <i data-lucide="x"></i>
           </button>
         </div>
-      </div>
 
-      <!-- Loading overlay -->
-      <div id="bulkLoading" class="bulk-loading" style="display:none;">
-        <div class="spinner"></div>
-        <p>Procesando archivo...</p>
+        <div class="preview-results hidden" id="previewResults">
+          <!-- Se llenará dinámicamente con los resultados -->
+        </div>
+
+        <button type="button" class="btn btn--primary btn--full hidden" id="btnConfirmUpload">
+          <i data-lucide="check"></i>
+          Confirmar y cargar datos
+        </button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- JS mínimo para toggles y animación (no altera POST de Django) -->
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  // Reasegurar icons si el base ya los creó igual no pasa nada
-  try { lucide.createIcons(); } catch(e) {}
+  try { lucide.createIcons(); } catch (_) {}
 
   const $ = (s, el=document) => el.querySelector(s);
   const $$ = (s, el=document) => [...el.querySelectorAll(s)];
 
-  // Helpers modal
-  const open = m => { m?.classList.add('is-open'); m?.setAttribute('aria-hidden','false'); }
-  const close = m => { m?.classList.remove('is-open'); m?.setAttribute('aria-hidden','true'); }
+  // --- Modal helpers ---
+  const open = (m) => { m?.classList.add('is-open'); m?.setAttribute('aria-hidden','false'); };
+  const close = (m) => { m?.classList.remove('is-open'); m?.setAttribute('aria-hidden','true'); };
 
-  const modalForm = $('#modalForm');
-  const modalDel  = $('#modalDelete');
-  const btnNew    = $('#btnNew');
-
-  const fldAction = $('#fldAction');
-  const fldCode   = $('#fldCode');
-  const fldFirst  = $('#fldFirst');
-  const fldFull   = $('#fldFull');
-  const fldCareer = $('#fldCareer');
-  const fldActive = $('#fldActive');
-
-  // NEW
-  btnNew?.addEventListener('click', () => {
-    $('#formTitle').textContent = 'Nuevo alumno';
-    fldAction.value = 'create';
-    fldCode.readOnly = false;
-    [fldCode, fldFirst, fldFull, fldCareer].forEach(i => i.value = '');
-    fldActive.checked = true;
-    open(modalForm);
-    setTimeout(()=>fldCode.focus(), 80);
-  });
-
-  // EDIT
-  $$('.js-edit').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      console.log('Edit button clicked'); // Debug
-      e.stopPropagation();
-      const row = btn.closest('tr');
-      if (!row) {
-        console.error('No se encontró la fila');
-        return;
-      }
-      $('#formTitle').textContent = 'Editar alumno';
-      fldAction.value = 'update';
-      fldCode.value   = row.dataset.code;
-      fldCode.readOnly = true;
-      fldFirst.value  = row.dataset.first;
-      fldFull.value   = row.dataset.full;
-      fldCareer.value = row.dataset.career || '';
-      fldActive.checked = row.dataset.active === 'true';
-      console.log('Opening modal...'); // Debug
-      open(modalForm);
-      setTimeout(()=>fldFirst.focus(), 80);
-    });
-  });
-
-  // DELETE
-  $$('.js-delete').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      console.log('Delete button clicked'); // Debug
-      e.stopPropagation();
-      const row = btn.closest('tr');
-      if (!row) {
-        console.error('No se encontró la fila');
-        return;
-      }
-      $('#delCode').value  = row.dataset.code;
-      $('#delLabel').textContent = row.dataset.code + ' - ' + row.dataset.first + ' ' + row.dataset.full;
-      console.log('Opening delete modal...'); // Debug
-      open(modalDel);
-    });
-  });
-
-  // Cerrar modales
-  $$('[data-close]').forEach(b => b.addEventListener('click', e => close(e.target.closest('.modal'))));
-  [modalForm, modalDel].forEach(m => m.addEventListener('click', (e)=>{ if(e.target === m) close(m); }));
-
-  // Animación de filas al entrar
-  const io = new IntersectionObserver((entries)=>{
-    entries.forEach(en=>{
-      if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); }
-    });
-  }, {threshold:.1});
-  $$('.row-animate').forEach(r=>io.observe(r));
-
-  // Renderizar iconos de paginación
-  setTimeout(() => { try { lucide.createIcons(); } catch(e) {} }, 200);
-
-  // Mejorar comportamiento del formulario de búsqueda
-  const searchForm = document.querySelector('.search');
-  const searchInput = $('.search__input');
-  
-  // Prevenir envío accidental del formulario con Enter en cualquier parte de la página
-  document.addEventListener('keydown', (e) => {
-    // Si se presiona Enter y NO estamos en un textarea, input de submit, o botón
-    if (e.key === 'Enter') {
-      const target = e.target;
-      const tagName = target.tagName.toLowerCase();
-      
-      // Solo permitir Enter en el campo de búsqueda
-      if (tagName === 'input' && target.name === 'q') {
-        // Permitir que el formulario de búsqueda se envíe
-        return;
-      }
-      
-      // Si estamos en un modal o formulario que no es de búsqueda, permitir comportamiento normal
-      if (target.closest('.modal') || target.type === 'submit' || target.type === 'button') {
-        return;
-      }
-      
-      // En cualquier otro caso, prevenir el envío
-      if (tagName === 'input' && target.type !== 'submit' && target.type !== 'button') {
-        e.preventDefault();
-      }
-    }
-  });
-
-  // Prevenir atajos de teclado problemáticos globalmente
-  document.addEventListener('keydown', (e) => {
-    // Prevenir Ctrl+S (guardar)
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    }
-    
-    // Prevenir Ctrl+O (abrir archivo)
-    if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    }
-    
-    // Prevenir Ctrl+P (imprimir) si no estamos en un contexto apropiado
-    if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
-      const target = e.target;
-      // Solo permitir en inputs/textareas
-      if (target.tagName.toLowerCase() !== 'input' && target.tagName.toLowerCase() !== 'textarea') {
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      }
-    }
-  }, true); // Captura en fase de captura para mayor control
-
-  // ============ CARGA MASIVA ============
+  const modalStudent = $('#modalStudent');
+  const modalDelete = $('#modalDelete');
   const modalBulk = $('#modalBulk');
-  const btnBulkLoad = $('#btnBulkLoad');
-  const stepMode = $('#stepMode');
-  const stepUpload = $('#stepUpload');
-  const stepPreview = $('#stepPreview');
-  
-  let currentMode = null;
-  let uploadedFile = null;
-  let parsedData = [];
-  let currentPage = 1;
-  const rowsPerPage = 10;
 
-  // Abrir modal carga masiva
-  btnBulkLoad?.addEventListener('click', () => {
-    resetBulkModal();
-    open(modalBulk);
-    setTimeout(() => { try { lucide.createIcons(); } catch(e) {} }, 100);
+  // --- Agregar estudiante ---
+  $('#btnAddStudent')?.addEventListener('click', () => {
+    $('#studentTitle').textContent = 'Agregar estudiante';
+    $('#studentSubtitle').textContent = 'Complete los datos del estudiante';
+    $('#fldAction').value = 'create';
+    $('#formStudent').reset();
+    $('#fldIsActive').checked = true;
+    $('#fldCodeUPC').readOnly = false;
+    open(modalStudent);
+    setTimeout(() => $('#fldCodeUPC')?.focus(), 80);
   });
 
-  // Selección de modo
-  $$('.mode-card').forEach(card => {
-    card.addEventListener('click', () => {
-      currentMode = card.dataset.mode;
-      showStep('upload');
-      updateModeBadge();
+  // --- Editar estudiante ---
+  $$('.js-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row = btn.closest('tr');
+      const code = row?.dataset.code || '';
+      const first = row?.dataset.first || '';
+      const full = row?.dataset.full || '';
+      const career = row?.dataset.career || '';
+      const active = row?.dataset.active === 'true';
+
+      $('#studentTitle').textContent = 'Editar estudiante';
+      $('#studentSubtitle').textContent = `Código: ${code}`;
+      $('#fldAction').value = 'update';
+      $('#fldCodeUPC').value = code;
+      $('#fldCodeUPC').readOnly = true;
+      $('#fldFirstNames').value = first;
+      $('#fldFullNames').value = full;
+      $('#fldCareer').value = career;
+      $('#fldIsActive').checked = active;
+
+      open(modalStudent);
+      setTimeout(() => $('#fldFirstNames')?.focus(), 80);
     });
   });
 
-  // Navegación
-  $('#btnBackToMode')?.addEventListener('click', () => showStep('mode'));
-  $('#btnBackToUpload')?.addEventListener('click', () => showStep('upload'));
+  // --- Eliminar estudiante ---
+  $$('.js-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const row = btn.closest('tr');
+      const code = row?.dataset.code || '';
+      const first = row?.dataset.first || '';
+      const full = row?.dataset.full || '';
 
-  // Upload zone
-  const uploadZone = $('#uploadZone');
+      $('#fldDeleteCode').value = code;
+      $('#deleteStudentName').textContent = `${first} ${full} (${code})`;
+
+      open(modalDelete);
+    });
+  });
+
+  // --- Exportar CSV ---
+  $('#btnExportCSV')?.addEventListener('click', () => {
+    window.location.href = "{% url 'pomi:alumnos_csv' %}";
+  });
+
+  // --- Carga masiva ---
+  let currentMode = 'add';
+  let selectedFile = null;
+
+  $('#btnBulkLoad')?.addEventListener('click', () => {
+    $('#bulkStep1').classList.remove('hidden');
+    $('#bulkStep2').classList.add('hidden');
+    $('#uploadPreview').classList.add('hidden');
+    $('#uploadArea').classList.remove('hidden');
+    selectedFile = null;
+    open(modalBulk);
+  });
+
+  $$('.js-select-mode').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const card = btn.closest('.bulk-card');
+      currentMode = card?.dataset.mode || 'add';
+      $('#bulkStep1').classList.add('hidden');
+      $('#bulkStep2').classList.remove('hidden');
+      lucide.createIcons();
+    });
+  });
+
+  $('#btnBackToBulk')?.addEventListener('click', () => {
+    $('#bulkStep1').classList.remove('hidden');
+    $('#bulkStep2').classList.add('hidden');
+  });
+
+  // --- Upload area ---
+  const uploadArea = $('#uploadArea');
   const fileInput = $('#fileInput');
-  const filePreview = $('#filePreview');
-  const btnRemoveFile = $('#btnRemoveFile');
-  const btnProcessFile = $('#btnProcessFile');
+  const uploadPreview = $('#uploadPreview');
 
-  uploadZone?.addEventListener('click', (e) => {
+  uploadArea?.addEventListener('click', () => fileInput?.click());
+
+  uploadArea?.addEventListener('dragover', (e) => {
     e.preventDefault();
-    e.stopPropagation();
-    fileInput.click();
+    uploadArea.classList.add('dragging');
   });
-  
-  uploadZone?.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    uploadZone.classList.add('dragover');
+
+  uploadArea?.addEventListener('dragleave', () => {
+    uploadArea.classList.remove('dragging');
   });
-  
-  uploadZone?.addEventListener('dragleave', (e) => {
+
+  uploadArea?.addEventListener('drop', (e) => {
     e.preventDefault();
-    e.stopPropagation();
-    uploadZone.classList.remove('dragover');
-  });
-  
-  uploadZone?.addEventListener('drop', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    uploadZone.classList.remove('dragover');
-    const files = e.dataTransfer.files;
-    if (files.length > 0) handleFileSelect(files[0]);
+    uploadArea.classList.remove('dragging');
+    const file = e.dataTransfer?.files[0];
+    if (file) handleFile(file);
   });
 
   fileInput?.addEventListener('change', (e) => {
-    e.stopPropagation();
-    if (e.target.files.length > 0) handleFileSelect(e.target.files[0]);
+    const file = e.target?.files[0];
+    if (file) handleFile(file);
   });
 
-  btnRemoveFile?.addEventListener('click', () => {
-    uploadedFile = null;
+  $('#btnRemoveFile')?.addEventListener('click', () => {
+    selectedFile = null;
     fileInput.value = '';
-    filePreview.style.display = 'none';
-    uploadZone.style.display = 'flex';
-    btnProcessFile.disabled = true;
+    uploadArea.classList.remove('hidden');
+    uploadPreview.classList.add('hidden');
+    $('#previewResults').classList.add('hidden');
+    $('#btnConfirmUpload').classList.add('hidden');
   });
 
-  btnProcessFile?.addEventListener('click', processFile);
+  function handleFile(file) {
+    if (!file) return;
 
-  // Paginación
-  $('#btnPrevPage')?.addEventListener('click', () => changePage(-1));
-  $('#btnNextPage')?.addEventListener('click', () => changePage(1));
-
-  // Acciones finales
-  $('#btnClearData')?.addEventListener('click', () => {
-    // Limpiar archivo cargado
-    uploadedFile = null;
-    fileInput.value = '';
-    filePreview.style.display = 'none';
-    uploadZone.style.display = 'flex';
-    btnProcessFile.disabled = true;
-    parsedData = [];
-    currentPage = 1;
-    // Volver al paso de carga
-    showStep('upload');
-  });
-  $('#btnConfirmBulk')?.addEventListener('click', confirmBulkLoad);
-
-  function showStep(step) {
-    $$('.bulk-step').forEach(s => s.classList.remove('active'));
-    if (step === 'mode') stepMode.classList.add('active');
-    else if (step === 'upload') stepUpload.classList.add('active');
-    else if (step === 'preview') stepPreview.classList.add('active');
-    try { lucide.createIcons(); } catch(e) {}
-  }
-
-  function updateModeBadge() {
-    const text = currentMode === 'replace' ? 'Actualizar todo' : 'Agregar alumnos';
-    const icon = currentMode === 'replace' ? 'refresh-ccw' : 'user-plus';
-    [$('#modeBadge'), $('#modeBadge2')].forEach(badge => {
-      if(badge) badge.innerHTML = `<i data-lucide="${icon}"></i> ${text}`;
-    });
-    $('#confirmText').textContent = currentMode === 'replace' ? 'Confirmar actualización' : 'Confirmar agregación';
-    try { lucide.createIcons(); } catch(e) {}
-  }
-
-  function handleFileSelect(file) {
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    const validTypes = ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-    
-    if (file.size > maxSize) {
-      alert('El archivo es demasiado grande. Máximo 10MB.');
-      return;
-    }
-    
-    if (!validTypes.includes(file.type) && !file.name.match(/\.(csv|xlsx)$/i)) {
-      alert('Formato no válido. Solo se aceptan archivos CSV o XLSX.');
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['csv', 'xlsx'].includes(ext)) {
+      alert('Solo se permiten archivos CSV o XLSX');
       return;
     }
 
-    uploadedFile = file;
+    if (file.size > 10 * 1024 * 1024) {
+      alert('El archivo no debe superar 10MB');
+      return;
+    }
+
+    selectedFile = file;
     $('#fileName').textContent = file.name;
-    $('#fileSize').textContent = formatFileSize(file.size);
-    filePreview.style.display = 'flex';
-    uploadZone.style.display = 'none';
-    btnProcessFile.disabled = false;
-    try { lucide.createIcons(); } catch(e) {}
+    $('#fileSize').textContent = formatBytes(file.size);
+    
+    uploadArea.classList.add('hidden');
+    uploadPreview.classList.remove('hidden');
+
+    // Procesar archivo
+    processFile(file);
   }
 
-  function formatFileSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-  }
-
-  async function processFile() {
-    if (!uploadedFile) return;
-
-    $('#bulkLoading').style.display = 'flex';
-
+  async function processFile(file) {
     const formData = new FormData();
-    formData.append('file', uploadedFile);
+    formData.append('file', file);
     formData.append('mode', currentMode);
 
     try {
       const response = await fetch("{% url 'pomi:process_bulk_file' %}", {
         method: 'POST',
         headers: {
-          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+          'X-CSRFToken': '{{ csrf_token }}'
         },
         body: formData
       });
 
       const result = await response.json();
-      
+
       if (result.success) {
-        parsedData = result.data;
-        displayPreview();
-        showStep('preview');
+        showPreview(result.data);
       } else {
-        alert('Error al procesar archivo: ' + (result.error || 'Error desconocido'));
+        alert('Error: ' + result.error);
       }
     } catch (error) {
-      console.error('Error:', error);
-      alert('Error al procesar el archivo. Verifica el formato.');
-    } finally {
-      $('#bulkLoading').style.display = 'none';
+      alert('Error al procesar el archivo: ' + error);
     }
   }
 
-  function displayPreview() {
-    const validData = parsedData.filter(row => row.errors.length === 0);
-    const errorData = parsedData.filter(row => row.errors.length > 0);
+  function showPreview(data) {
+    const preview = $('#previewResults');
+    const validCount = data.filter(r => r.errors.length === 0).length;
+    const errorCount = data.filter(r => r.errors.length > 0).length;
 
-    $('#totalRows').textContent = parsedData.length;
-    $('#validRows').textContent = validData.length;
-    $('#errorRows').textContent = errorData.length;
-
-    // Mostrar mensajes de validación
-    const validationMsgs = $('#validationMessages');
-    validationMsgs.innerHTML = '';
-    
-    if (errorData.length > 0) {
-      validationMsgs.innerHTML = `
-        <div class="bulk-info bulk-info--warning">
-          <i data-lucide="alert-triangle"></i>
-          <p><strong>Se encontraron ${errorData.length} error(es).</strong> Los registros con errores no serán procesados. Revisa la tabla para más detalles.</p>
+    let html = `
+      <div class="preview-stats">
+        <div class="preview-stat preview-stat--ok">
+          <i data-lucide="check-circle-2"></i>
+          <span>${validCount} válidos</span>
         </div>
-      `;
-    } else {
-      validationMsgs.innerHTML = `
-        <div class="bulk-info bulk-info--success">
-          <i data-lucide="check-circle"></i>
-          <p><strong>¡Validación exitosa!</strong> Todos los registros son válidos y están listos para ser procesados.</p>
+        <div class="preview-stat preview-stat--error">
+          <i data-lucide="alert-circle"></i>
+          <span>${errorCount} con errores</span>
         </div>
-      `;
+      </div>
+    `;
+
+    if (errorCount > 0) {
+      html += '<div class="preview-errors"><h5>Errores encontrados:</h5><ul>';
+      data.forEach((row, idx) => {
+        if (row.errors.length > 0) {
+          html += `<li><strong>Fila ${idx + 2}:</strong> ${row.errors.join(', ')}</li>`;
+        }
+      });
+      html += '</ul></div>';
     }
 
-    $('#btnConfirmBulk').disabled = validData.length === 0;
-    currentPage = 1;
-    renderPage();
-    try { lucide.createIcons(); } catch(e) {}
-  }
-
-  function renderPage() {
-    const start = (currentPage - 1) * rowsPerPage;
-    const end = start + rowsPerPage;
-    const pageData = parsedData.slice(start, end);
-    const totalPages = Math.ceil(parsedData.length / rowsPerPage);
-
-    const tbody = $('#previewTableBody');
-    tbody.innerHTML = pageData.map((row, idx) => {
-      const rowNumber = start + idx + 1;
-      const statusClass = row.errors.length === 0 ? 'status-valid' : 'status-error';
-      const statusIcon = row.errors.length === 0 ? 'check-circle' : 'x-circle';
-      
-      return `
-        <tr class="${statusClass}">
-          <td>${rowNumber}</td>
-          <td><i data-lucide="${statusIcon}"></i></td>
-          <td class="mono">${row.code_upc || '—'}</td>
-          <td>${row.first_names || '—'}</td>
-          <td>${row.full_names || '—'}</td>
-          <td>${row.career || '—'}</td>
-          <td>${row.is_active ? 'Sí' : 'No'}</td>
-          <td class="cell-errors">${row.errors.length > 0 ? row.errors.join(', ') : '—'}</td>
-        </tr>
-      `;
-    }).join('');
-
-    $('#paginationInfo').textContent = `Mostrando ${start + 1} - ${Math.min(end, parsedData.length)} de ${parsedData.length}`;
-    $('#pageInfo').textContent = `Página ${currentPage} de ${totalPages}`;
-    $('#btnPrevPage').disabled = currentPage === 1;
-    $('#btnNextPage').disabled = currentPage === totalPages;
-
-    try { lucide.createIcons(); } catch(e) {}
-  }
-
-  function changePage(delta) {
-    const totalPages = Math.ceil(parsedData.length / rowsPerPage);
-    const newPage = currentPage + delta;
-    if (newPage >= 1 && newPage <= totalPages) {
-      currentPage = newPage;
-      renderPage();
-    }
-  }
-
-  async function confirmBulkLoad() {
-    const validData = parsedData.filter(row => row.errors.length === 0);
+    preview.innerHTML = html;
+    preview.classList.remove('hidden');
     
-    if (validData.length === 0) {
-      alert('No hay datos válidos para procesar.');
-      return;
+    if (validCount > 0) {
+      $('#btnConfirmUpload').classList.remove('hidden');
     }
 
-    const confirmMsg = currentMode === 'replace' 
-      ? `¿Estás seguro de REEMPLAZAR toda la base de datos con ${validData.length} registro(s)? Esta acción eliminará todos los alumnos existentes.`
-      : `¿Estás seguro de agregar ${validData.length} nuevo(s) alumno(s)?`;
+    lucide.createIcons();
+  }
 
-    if (!confirm(confirmMsg)) return;
+  $('#btnConfirmUpload')?.addEventListener('click', async () => {
+    if (!selectedFile) return;
 
-    $('#bulkLoading').style.display = 'flex';
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('mode', currentMode);
 
     try {
-      const response = await fetch("{% url 'pomi:confirm_bulk_load' %}", {
+      const response = await fetch("{% url 'pomi:process_bulk_file' %}", {
         method: 'POST',
         headers: {
-          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-          'Content-Type': 'application/json'
+          'X-CSRFToken': '{{ csrf_token }}'
         },
-        body: JSON.stringify({
-          mode: currentMode,
-          data: validData
-        })
+        body: formData
       });
 
       const result = await response.json();
-      
+
       if (result.success) {
-        alert(`✓ Operación exitosa: ${result.message}`);
-        close(modalBulk);
-        location.reload();
-      } else {
-        alert('Error: ' + (result.error || 'Error desconocido'));
+        // Confirmar carga
+        const confirmResponse = await fetch("{% url 'pomi:confirm_bulk_load' %}", {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+          },
+          body: JSON.stringify({
+            mode: currentMode,
+            data: result.data
+          })
+        });
+
+        const confirmResult = await confirmResponse.json();
+
+        if (confirmResult.success) {
+          alert(`¡Éxito! ${confirmResult.created} estudiante(s) cargado(s)`);
+          window.location.reload();
+        } else {
+          alert('Error: ' + confirmResult.error);
+        }
       }
     } catch (error) {
-      console.error('Error:', error);
-      alert('Error al procesar la carga masiva.');
-    } finally {
-      $('#bulkLoading').style.display = 'none';
+      alert('Error al confirmar la carga: ' + error);
     }
+  });
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   }
 
-  function resetBulkModal() {
-    currentMode = null;
-    uploadedFile = null;
-    parsedData = [];
-    currentPage = 1;
-    fileInput.value = '';
-    filePreview.style.display = 'none';
-    uploadZone.style.display = 'flex';
-    btnProcessFile.disabled = true;
-    showStep('mode');
-  }
+  // --- Cerrar modales ---
+  $$('[data-close]').forEach(b => b.addEventListener('click', (e) => close(e.target.closest('.modal'))));
+  [modalStudent, modalDelete, modalBulk].forEach(m => {
+    m?.addEventListener('click', (e) => { if (e.target === m) close(m); });
+  });
+
+  // --- Animación de filas ---
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(en => {
+      if (en.isIntersecting) {
+        en.target.classList.add('in');
+        io.unobserve(en.target);
+      }
+    });
+  }, { threshold: .1 });
+  $$('.row-animate').forEach(r => io.observe(r));
 });
 </script>
-
 {% endblock %}

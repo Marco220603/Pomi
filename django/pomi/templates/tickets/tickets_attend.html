@@ -147,7 +147,7 @@
 
 <!-- Modal Atender -->
 <div class="modal" id="modalAttend" aria-hidden="true" role="dialog" aria-modal="true">
-  <div class="modal__panel">
+  <div class="modal__panel modal__panel--lg">
     <header class="modal__head">
       <div>
         <h3 id="attendTitle">Atender ticket</h3>
@@ -164,19 +164,72 @@
       <input type="hidden" name="codigo_ticket" id="fldCodeTicket">
 
       <div class="grid">
+        <!-- Información del ticket -->
+        <div class="field field--full">
+          <div class="ticket-info">
+            <div class="ticket-info__item">
+              <span class="ticket-info__label"><i data-lucide="hash"></i> Código:</span>
+              <span class="ticket-info__value mono" id="infoCode">—</span>
+            </div>
+            <div class="ticket-info__item">
+              <span class="ticket-info__label"><i data-lucide="file-text"></i> Asunto:</span>
+              <span class="ticket-info__value" id="infoSubject">—</span>
+            </div>
+            <div class="ticket-info__item">
+              <span class="ticket-info__label"><i data-lucide="align-left"></i> Descripción:</span>
+              <span class="ticket-info__value" id="infoDesc">—</span>
+            </div>
+            <div class="ticket-info__item">
+              <span class="ticket-info__label"><i data-lucide="user"></i> Asignado a:</span>
+              <span class="ticket-info__value" id="infoAgent">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cambiar prioridad -->
+        <div class="field">
+          <label><i data-lucide="alert-circle"></i> Cambiar prioridad</label>
+          <div class="select">
+            <select name="priority" id="fldPriority" class="input input--select">
+              <option value="Baja">Baja</option>
+              <option value="Media">Media</option>
+              <option value="Alta">Alta</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Cambiar estado -->
+        <div class="field">
+          <label><i data-lucide="activity"></i> Estado del ticket</label>
+          <div class="select">
+            <select name="state" id="fldState" class="input input--select">
+              <option value="pending">Pendiente</option>
+              <option value="in_progress">En progreso</option>
+              <option value="resolved">Resuelto</option>
+              <option value="closed">Cerrado</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Mensaje de respuesta -->
         <div class="field field--full">
           <label>Mensaje para el estudiante <span>*</span></label>
-          <textarea name="rpta_ticket" id="fldReply" class="input input--area" rows="6" placeholder="Escribe una respuesta clara, cordial y accionable…" required></textarea>
+          <textarea name="rpta_ticket" id="fldReply" class="input input--area" rows="8" placeholder="Escribe una respuesta clara, cordial y accionable…" required maxlength="500"></textarea>
           <div class="hint">
-            <span id="replyCounter" aria-live="polite">0</span> / 500
+            <i data-lucide="info"></i>
+            <span>El mensaje será enviado automáticamente por WhatsApp al estudiante</span>
+            <span class="hint__counter"><span id="replyCounter" aria-live="polite">0</span> / 500</span>
           </div>
         </div>
       </div>
 
       <footer class="modal__foot">
-        <button type="button" class="btn" data-close>Cancelar</button>
+        <button type="button" class="btn" data-close>
+          <i data-lucide="x"></i>
+          Cancelar
+        </button>
         <button type="submit" class="btn btn--primary">
-          <span class="btn__inner"><i data-lucide="send"></i> Enviar respuesta</span>
+          <span class="btn__inner"><i data-lucide="send"></i> Enviar respuesta por WhatsApp</span>
           <span class="btn__spin" aria-hidden="true"></span>
         </button>
       </footer>
@@ -210,17 +263,26 @@ document.addEventListener('DOMContentLoaded', () => {
       const row = btn.closest('tr');
       const code     = row?.dataset.code || '';
       const subject  = row?.dataset.subject || '';
+      const desc     = row?.dataset.desc || '';
       const priority = row?.dataset.priority || 'Baja';
       const agent    = row?.dataset.agent || 'Sin asignar';
 
       fldCodeTicket.value = code;
 
+      // Mostrar información en el modal
+      $('#infoCode').textContent = code;
+      $('#infoSubject').textContent = subject;
+      $('#infoDesc').textContent = desc;
+      $('#infoAgent').textContent = agent;
+
+      // Establecer prioridad actual
+      $('#fldPriority').value = priority;
+      $('#fldState').value = 'in_progress';
+
       // Etiqueta con más contexto
       const parts = [];
       if (code) parts.push(`#${code}`);
       if (subject) parts.push(subject);
-      parts.push(`Prioridad: ${priority}`);
-      parts.push(`Asignado: ${agent}`);
       lblTicket.textContent = parts.join(' · ');
 
       // Reset visual
@@ -228,7 +290,10 @@ document.addEventListener('DOMContentLoaded', () => {
       replyCounter.textContent = '0';
 
       open(modalAttend);
-      setTimeout(() => fldReply?.focus(), 80);
+      setTimeout(() => {
+        fldReply?.focus();
+        lucide.createIcons();
+      }, 80);
     });
   });
 
