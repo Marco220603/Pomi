@@ -77,6 +77,38 @@ const main = async () => {
     })
   )
 
+  adapterProvider.server.post(
+    '/v1/sendAdmin',
+    handleCtx(async (bot, req, res) => {
+      try{
+        const { number, message, urlMedia} = req.body
+        console.log(number)
+        console.log(message)
+        await bot.sendMessage(number, message, { media: urlMedia ?? null })
+        return res.end('sended')
+      }catch(error){
+        console.log(`Error en el servidor: ${error}`)
+        return res.end(`Error ${error}`)
+      }
+    })
+  )
+
+  adapterProvider.server.post(
+    'v1/sendAnswer',
+    handleCtx(async (bot, req, res) => {
+      try{
+        const { number, message, urlMedia} = req.body
+        console.log(number)
+        console.log(message)
+        await bot.sendMessage(number, message, {media: urlMedia ?? null})
+        return res.end('Enviado')
+      }catch(e){
+        console.log(`Error ${e}`)
+        return res.end('Error')
+      }
+    })
+  )
+
   httpServer(+PORT)
 }
 

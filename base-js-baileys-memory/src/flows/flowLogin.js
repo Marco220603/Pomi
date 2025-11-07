@@ -38,8 +38,10 @@ export const mensajeBienvenida = addKeyword(EVENTS.WELCOME)
   .addAnswer(messageWelcome, { delay: 500, capture: true }, 
     async (ctx, ctxFn) => {
       const codigo_upc = ctx.body.trim().toLowerCase()
+      console.log(codigo_upc)
       const phone_upc = ctx.from.slice(-9)
       const validador = validateCode(codigo_upc)
+      console.log(validador)
       if (!validador) {
         return ctxFn.fallBack('❌ Código no válido. Ingresa un código correcto (Ej: U202012345): ')
       }
@@ -106,6 +108,7 @@ function validateCode(codigo) {
   const norm = String(codigo)
     .normalize('NFKD')
     .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '') // quita espacios, guiones, etc.
-  return /^U[A-Z0-9]{9}$/.test(norm)
+    .replace(/[^A-Z0-9]/g, '');
+  console.log({ raw: codigo, norm, len: norm.length });
+  return /^U[A-Z0-9]{9}$/.test(norm);
 }
