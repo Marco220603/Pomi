@@ -38,6 +38,16 @@ const main = async () => {
     }
   })
 
+  // Health check endpoint
+  adapterProvider.server.get('/health', (req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    return res.end(JSON.stringify({ 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      message: 'Bot servidor funcionando correctamente'
+    }))
+  })
+
   adapterProvider.server.post(
     '/v1/messages',
     handleCtx(async (bot, req, res) => {
@@ -81,20 +91,47 @@ const main = async () => {
     '/v1/sendAdmin',
     handleCtx(async (bot, req, res) => {
       try{
+        console.log('========== REQUEST /v1/sendAdmin ==========')
+        console.log('Body recibido:', JSON.stringify(req.body, null, 2))
+        
         const { number, message, urlMedia} = req.body
-        console.log(number)
-        console.log(message)
+        
+        if (!number || !message) {
+          console.log('ERROR: Faltan campos requeridos')
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          return res.end(JSON.stringify({ 
+            error: 'Campos requeridos faltantes',
+            received: { number, message, urlMedia }
+          }))
+        }
+        
+        console.log('Enviando mensaje...')
+        console.log('  → Número:', number)
+        console.log('  → Mensaje:', message)
+        console.log('  → Media:', urlMedia)
+        
         await bot.sendMessage(number, message, { media: urlMedia ?? null })
-        return res.end('sended')
+        
+        console.log('✓ Mensaje enviado exitosamente')
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        return res.end(JSON.stringify({ 
+          status: 'success',
+          message: 'Mensaje enviado correctamente'
+        }))
       }catch(error){
-        console.log(`Error en el servidor: ${error}`)
-        return res.end(`Error ${error}`)
+        console.log('✗ ERROR al enviar mensaje:', error.message)
+        console.error(error)
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        return res.end(JSON.stringify({ 
+          error: error.message,
+          stack: error.stack
+        }))
       }
     })
   )
 
   adapterProvider.server.post(
-    'v1/sendAnswer',
+    '/v1/sendAnswer',
     handleCtx(async (bot, req, res) => {
       try{
         const { number, message, urlMedia} = req.body
