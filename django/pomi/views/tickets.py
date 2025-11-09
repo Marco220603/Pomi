@@ -3,6 +3,9 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from pomi.views.navbar import get_navbar_context
 from pomi.models.ticket import Ticket
+import logging
+
+logger = logging.getLogger(__name__)
 
 @login_required
 def attend_tickets(request):
@@ -31,17 +34,25 @@ def attend_tickets(request):
         ticket_obj.save()
         
         # Enviar respuesta por WhatsApp al estudiante
+        logger.info("="*80)
+        logger.info("INICIANDO ENVÍO DE WHATSAPP AL ESTUDIANTE")
+        logger.info("="*80)
+        
         try:
-            BUILDERBOT_URL = 'http://bountiful-vitality-production.up.railway.app'
+            BUILDERBOT_URL = 'https://bountiful-vitality-production.up.railway.app'
             
             # Obtener datos del administrador (usuario autenticado)
             admin_user = request.user
             # ticket_obj.student es un WhatsAppUserStudent, que tiene phone_number
             student_number = ticket_obj.student.phone_number
             
+            logger.info(f"Número original del estudiante: {student_number}")
+            
             # Agregar @s.whatsapp.net si no lo tiene
             if not student_number.endswith('@s.whatsapp.net'):
                 student_number = f"{student_number}@s.whatsapp.net"
+            
+            logger.info(f"Número formateado: {student_number}")
             
             texto = (
                 f"✅ *Respuesta a tu Ticket #{ticket_obj.codigo_ticket}*\n"
@@ -51,31 +62,37 @@ def attend_tickets(request):
             )
             
             import requests as req
-            print(f"Enviando mensaje a: {student_number}")
-            print(f"Mensaje: {texto}")
             
-            response = req.post(
-                f"{BUILDERBOT_URL}/v1/sendAnswer",
-                json={
-                    "number": student_number,
-                    "message": texto,
-                    "urlMedia": None
-                },
-                timeout=10
-            )
+            url = f"{BUILDERBOT_URL}/v1/sendAnswer"
+            payload = {
+                "number": student_number,
+                "message": texto,
+                "urlMedia": None
+            }
             
-            print(f"Respuesta de BuilderBot: {response.status_code} - {response.text}")
+            logger.info(f"URL: {url}")
+            logger.info(f"Payload: {payload}")
+            logger.info("Enviando petición HTTP...")
+            
+            response = req.post(url, json=payload, timeout=10)
+            
+            logger.info(f"Respuesta HTTP Status: {response.status_code}")
+            logger.info(f"Respuesta HTTP Body: {response.text}")
+            logger.info(f"Respuesta HTTP Headers: {dict(response.headers)}")
             
             if response.status_code == 200:
+                logger.info("✓ Mensaje enviado exitosamente")
                 messages.success(request, f"Ticket {codigo_ticket} actualizado y respuesta enviada por WhatsApp.")
             else:
+                logger.error(f"✗ Error en envío: status {response.status_code}")
                 messages.warning(request, f"Ticket {codigo_ticket} actualizado, pero no se pudo enviar WhatsApp (status: {response.status_code}).")
                 
         except Exception as e:
-            print(f"Error enviando WhatsApp al estudiante: {e}")
+            logger.error(f"EXCEPCIÓN al enviar WhatsApp: {e}")
+            logger.error(f"Tipo de error: {type(e).__name__}")
             import traceback
-            traceback.print_exc()
-            messages.warning(request, f"Ticket {codigo_ticket} actualizado, pero hubo un error al enviar WhatsApp.")
+            logger.error(traceback.format_exc())
+            messages.warning(request, f"Ticket {codigo_ticket} actualizado, pero hubo un error al enviar WhatsApp: {str(e)}")
         
         return redirect('pomi:tickets')
     
@@ -99,6 +116,7 @@ from pomi.apis.ticketSerializer import TicketSerializer, getTicket
 from pomi.apis.ticketServices import createTicket
 from pomi.apis.usuariosSerializers import AdminSerializer
 import requests
+import sys
 
 class RegisterTicket(APIView):
     """
@@ -138,16 +156,25 @@ class RegisterTicket(APIView):
         }
         
         # NOTIFICAR AL ADMINISTRADOR QUE SE ESTA REGISTRANDO UN TICKET
+        logger.info("="*80)
+        logger.info("INICIANDO NOTIFICACIÓN AL ADMINISTRADOR")
+        logger.info("="*80)
+        
         try:
-            BUILDERBOT_URL = 'http://bountiful-vitality-production.up.railway.app'
+            BUILDERBOT_URL = 'https://bountiful-vitality-production.up.railway.app'
             FRONTEND_URL  = 'http://pomi-production.up.railway.app'
             admin_number = admin_serializer.data.get('cellphone')
             ticket_obj = result['ticket']
+            
+            logger.info(f"Número de admin obtenido: {admin_number}")
+            logger.info(f"Ticket creado: #{ticket_obj.codigo_ticket}")
             
             if admin_number:
                 # Agregar @s.whatsapp.net si no lo tiene
                 if not admin_number.endswith('@s.whatsapp.net'):
                     admin_number = f"{admin_number}@s.whatsapp.net"
+                
+                logger.info(f"Número formateado del admin: {admin_number}")
                     
                 mensaje = (
                     f"📢 *Nuevo Ticket #{ticket_obj.codigo_ticket}*\n"
@@ -159,32 +186,35 @@ class RegisterTicket(APIView):
                     f"👉 Atendelo aquí: {FRONTEND_URL}/tickets/"
                 )
                 
-                print(f"Enviando notificación a admin: {admin_number}")
-                print(f"Mensaje: {mensaje}")
+                url = f"{BUILDERBOT_URL}/v1/sendAdmin"
+                payload = {
+                    "number": admin_number,
+                    "message": mensaje,
+                    "urlMedia": None
+                }
                 
-                response = requests.post(
-                    f"{BUILDERBOT_URL}/v1/sendAdmin",
-                    json={
-                        "number": admin_number,
-                        "message": mensaje,
-                        "urlMedia": None
-                    },
-                    timeout=10
-                )
+                logger.info(f"URL: {url}")
+                logger.info(f"Payload: {payload}")
+                logger.info("Enviando petición HTTP al admin...")
                 
-                print(f"Respuesta de BuilderBot (admin): {response.status_code} - {response.text}")
+                response = requests.post(url, json=payload, timeout=10)
+                
+                logger.info(f"Respuesta HTTP Status: {response.status_code}")
+                logger.info(f"Respuesta HTTP Body: {response.text}")
+                logger.info(f"Respuesta HTTP Headers: {dict(response.headers)}")
                 
                 if response.status_code == 200:
-                    print(f"✓ Notificación enviada exitosamente a {admin_number}")
+                    logger.info(f"✓ Notificación enviada exitosamente a {admin_number}")
                 else:
-                    print(f"✗ Error al enviar notificación: status {response.status_code}")
+                    logger.error(f"✗ Error al enviar notificación: status {response.status_code}")
             else:
-                print("No se encontró número de teléfono del administrador")
+                logger.warning("No se encontró número de teléfono del administrador")
+                
         except Exception as e:
-            # Logealo; no queremos que el fallo de WhatsApp impida crear el ticket
-            print(f"Error enviando WhatsApp al admin: {e}")
+            logger.error(f"EXCEPCIÓN al enviar WhatsApp al admin: {e}")
+            logger.error(f"Tipo de error: {type(e).__name__}")
             import traceback
-            traceback.print_exc()
+            logger.error(traceback.format_exc())
             
         return Response(response_data, status=status.HTTP_200_OK)
 
