@@ -29,9 +29,10 @@ class TicketSerializer(serializers.ModelSerializer):
         if not titulo and not descripcion and not celular and not tipo:
             raise serializers.ValidationError({'error': 'Los campos "titulo", "descripcion", "celular", "tipo"'})
         whatsappStudent = None
-        try:
-            whatsappStudent = WhatsAppUserStudent.objects.get(phone_number=celular)
-        except WhatsAppUserStudent.DoesNotExist:
+        # Usamos filter().first() para manejar casos con múltiples registros
+        # Obtenemos el más reciente basado en last_date_update
+        whatsappStudent = WhatsAppUserStudent.objects.filter(phone_number=celular).order_by('-last_date_update').first()
+        if not whatsappStudent:
             raise serializers.ValidationError({'error': 'No se ha podido registrar el ticket, diferente número'})
         data['whatsappStudent'] = whatsappStudent
         return data
