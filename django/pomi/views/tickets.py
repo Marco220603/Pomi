@@ -50,7 +50,7 @@ def attend_tickets(request):
             
             # Agregar @s.whatsapp.net si no lo tiene
             if not student_number.endswith('@s.whatsapp.net'):
-                student_number = f"{student_number}@s.whatsapp.net"
+                student_number = f"51{student_number}@s.whatsapp.net"
             
             logger.info(f"Número formateado: {student_number}")
             
@@ -172,7 +172,7 @@ class RegisterTicket(APIView):
             if admin_number:
                 # Agregar @s.whatsapp.net si no lo tiene
                 if not admin_number.endswith('@s.whatsapp.net'):
-                    admin_number = f"{admin_number}@s.whatsapp.net"
+                    admin_number = f"51{admin_number}@s.whatsapp.net"
                 
                 logger.info(f"Número formateado del admin: {admin_number}")
                     
