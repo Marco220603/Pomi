@@ -36,7 +36,12 @@ def attend_tickets(request):
             
             # Obtener datos del administrador (usuario autenticado)
             admin_user = request.user
+            # ticket_obj.student es un WhatsAppUserStudent, que tiene phone_number
             student_number = ticket_obj.student.phone_number
+            
+            # Agregar @s.whatsapp.net si no lo tiene
+            if not student_number.endswith('@s.whatsapp.net'):
+                student_number = f"{student_number}@s.whatsapp.net"
             
             texto = (
                 f"✅ *Respuesta a tu Ticket #{ticket_obj.codigo_ticket}*\n"
@@ -46,22 +51,30 @@ def attend_tickets(request):
             )
             
             import requests as req
+            print(f"Enviando mensaje a: {student_number}")
+            print(f"Mensaje: {texto}")
+            
             response = req.post(
                 f"{BUILDERBOT_URL}/v1/sendAnswer",
                 json={
                     "number": student_number,
-                    "message": texto
+                    "message": texto,
+                    "urlMedia": None
                 },
                 timeout=10
             )
             
+            print(f"Respuesta de BuilderBot: {response.status_code} - {response.text}")
+            
             if response.status_code == 200:
                 messages.success(request, f"Ticket {codigo_ticket} actualizado y respuesta enviada por WhatsApp.")
             else:
-                messages.warning(request, f"Ticket {codigo_ticket} actualizado, pero no se pudo enviar WhatsApp.")
+                messages.warning(request, f"Ticket {codigo_ticket} actualizado, pero no se pudo enviar WhatsApp (status: {response.status_code}).")
                 
         except Exception as e:
             print(f"Error enviando WhatsApp al estudiante: {e}")
+            import traceback
+            traceback.print_exc()
             messages.warning(request, f"Ticket {codigo_ticket} actualizado, pero hubo un error al enviar WhatsApp.")
         
         return redirect('pomi:tickets')
@@ -132,6 +145,10 @@ class RegisterTicket(APIView):
             ticket_obj = result['ticket']
             
             if admin_number:
+                # Agregar @s.whatsapp.net si no lo tiene
+                if not admin_number.endswith('@s.whatsapp.net'):
+                    admin_number = f"{admin_number}@s.whatsapp.net"
+                    
                 mensaje = (
                     f"📢 *Nuevo Ticket #{ticket_obj.codigo_ticket}*\n"
                     f"👤 Estudiante: {whatsappStudent.student.first_names} {whatsappStudent.student.full_names} ({whatsappStudent.phone_number})\n"
@@ -141,19 +158,33 @@ class RegisterTicket(APIView):
                     f"📝 Descripción: {ticket_obj.description}\n\n"
                     f"👉 Atendelo aquí: {FRONTEND_URL}/tickets/"
                 )
-                requests.post(
-                    f"{BUILDERBOT_URL}/v1/messages",
+                
+                print(f"Enviando notificación a admin: {admin_number}")
+                print(f"Mensaje: {mensaje}")
+                
+                response = requests.post(
+                    f"{BUILDERBOT_URL}/v1/sendAdmin",
                     json={
                         "number": admin_number,
-                        "message": mensaje
-                    }
+                        "message": mensaje,
+                        "urlMedia": None
+                    },
+                    timeout=10
                 )
-                print(f"Notificación enviada a {admin_number}")
+                
+                print(f"Respuesta de BuilderBot (admin): {response.status_code} - {response.text}")
+                
+                if response.status_code == 200:
+                    print(f"✓ Notificación enviada exitosamente a {admin_number}")
+                else:
+                    print(f"✗ Error al enviar notificación: status {response.status_code}")
             else:
                 print("No se encontró número de teléfono del administrador")
         except Exception as e:
             # Logealo; no queremos que el fallo de WhatsApp impida crear el ticket
-            print(f"Error enviando WhatsApp: {e}")
+            print(f"Error enviando WhatsApp al admin: {e}")
+            import traceback
+            traceback.print_exc()
             
         return Response(response_data, status=status.HTTP_200_OK)
 
